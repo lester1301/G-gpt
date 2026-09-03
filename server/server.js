@@ -57,14 +57,12 @@ const ai = new GoogleGenAI({
 // Allow local development + production frontend
 const allowedOrigins = [
   "http://localhost:5173",
-  process.env.CLIENT_URL,
+  "https://g-gpt-wheat.vercel.app",
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests without an origin
-      // (Postman, server-to-server, etc.)
       if (!origin) {
         return callback(null, true);
       }
@@ -73,9 +71,9 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(
-        new Error("Not allowed by CORS")
-      );
+      console.log("❌ CORS blocked origin:", origin);
+
+      return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
   })
