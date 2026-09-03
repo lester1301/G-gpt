@@ -1785,27 +1785,23 @@
 ========================================================= */
 
 .send-btn {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   width: 52px;
   height: 52px;
 
   flex-shrink: 0;
 
-  position: relative;
-
-  display: flex;
-
-  align-items: center;
-  justify-content: center;
-
   padding: 0;
 
   border: none;
-
   border-radius: 50%;
 
-  background:
-    #05050c;
+  background: #05050c;
 
   color: #ffffff;
 
@@ -1813,13 +1809,17 @@
 
   overflow: visible;
 
+  font-size: 0;
+
+  transition:
+    transform 0.25s var(--ease),
+    opacity 0.2s ease;
 }
 
 
 /* Rotating outer ring */
 
 .send-btn::before {
-
   content: "";
 
   position: absolute;
@@ -1842,14 +1842,12 @@
     gRotate 2.5s linear infinite;
 
   z-index: 0;
-
 }
 
 
-/* Glow */
+/* Outer glow */
 
 .send-btn::after {
-
   content: "";
 
   position: absolute;
@@ -1861,7 +1859,7 @@
   background:
     radial-gradient(
       circle,
-      rgba(124,60,255,0.38),
+      rgba(124, 60, 255, 0.38),
       transparent 65%
     );
 
@@ -1869,38 +1867,22 @@
     gPulse 2s ease-in-out infinite;
 
   z-index: -1;
-
 }
 
 
-/* Actual G */
-
-.send-btn {
-
-  font-size: 0;
-
-}
-
-
-.send-btn::before {
-
-  /* ring only */
-}
-
+/* Inner G */
 
 .send-btn span {
-
   position: relative;
 
   z-index: 2;
 
-  width: 44px;
-  height: 44px;
-
   display: flex;
-
   align-items: center;
   justify-content: center;
+
+  width: 44px;
+  height: 44px;
 
   border-radius: 50%;
 
@@ -1914,42 +1896,39 @@
   color: #ffffff;
 
   font-size: 21px;
-
   font-weight: 700;
 
   box-shadow:
-    inset 0 0 12px rgba(124,60,255,0.2);
-
+    inset 0 0 12px rgba(124, 60, 255, 0.2);
 }
 
+
+/* Hover */
 
 .send-btn:hover:not(:disabled) {
-
-  transform:
-    scale(1.08);
-
+  transform: scale(1.08);
 }
 
+
+/* Click */
 
 .send-btn:active:not(:disabled) {
-
-  transform:
-    scale(0.94);
-
+  transform: scale(0.94);
 }
 
 
-.send-btn:disabled {
+/* Disabled */
 
+.send-btn:disabled {
   opacity: 0.45;
 
   cursor: not-allowed;
-
 }
 
 
-@keyframes gRotate {
+/* Ring rotation */
 
+@keyframes gRotate {
   from {
     transform: rotate(0deg);
   }
@@ -1957,12 +1936,12 @@
   to {
     transform: rotate(360deg);
   }
-
 }
 
 
-@keyframes gPulse {
+/* Glow pulse */
 
+@keyframes gPulse {
   0%,
   100% {
     opacity: 0.45;
@@ -1973,106 +1952,55 @@
     opacity: 0.9;
     transform: scale(1.08);
   }
-
 }
+
+
+/* =========================================================
+   STOP BUTTON
+   ========================================================= */
+
+.stop-btn {
+  color: #fca5a5;
+
+  background:
+    rgba(239, 68, 68, 0.11);
+
+  border: 1px solid
+    rgba(239, 68, 68, 0.18);
 
   box-shadow:
-    0 8px 25px rgba(99, 80, 220, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
-
-  overflow: hidden;
-}
-
-
-.send-btn::before {
-  content: "";
-
-  position: absolute;
-
-  inset: 1px;
-
-  border-radius: 12px;
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.14),
-      transparent 50%
-    );
-
-  pointer-events: none;
-}
-
-
-.send-btn::after {
-  content: "";
-
-  position: absolute;
-
-  top: -60%;
-  left: -90%;
-
-  width: 60%;
-  height: 220%;
-
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.35),
-      transparent
-    );
-
-  transform: rotate(25deg);
+    0 0 20px rgba(239, 68, 68, 0.08);
 
   animation:
-    sendShine 3.5s ease-in-out infinite;
+    stopGlow 1.8s ease-in-out infinite;
 }
 
 
-@keyframes sendShine {
+.stop-btn:hover {
+  color: #fecaca;
+
+  background:
+    rgba(239, 68, 68, 0.18);
+
+  border-color:
+    rgba(239, 68, 68, 0.3);
+
+  transform:
+    scale(1.04);
+}
+
+
+@keyframes stopGlow {
   0%,
-  45% {
-    transform:
-      translateX(-120%)
-      rotate(25deg);
-  }
-
-  70%,
   100% {
-    transform:
-      translateX(300%)
-      rotate(25deg);
+    box-shadow:
+      0 0 10px rgba(239, 68, 68, 0.05);
   }
-}
 
-
-.send-btn:hover:not(:disabled) {
-  transform:
-    translateY(-2px)
-    scale(1.025);
-
-  box-shadow:
-    0 12px 35px rgba(99, 80, 220, 0.4),
-    0 0 24px rgba(139, 92, 246, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-
-
-.send-btn:active:not(:disabled) {
-  transform:
-    translateY(0)
-    scale(0.96);
-}
-
-
-.send-btn:disabled {
-  opacity: 0.32;
-
-  cursor: not-allowed;
-
-  box-shadow:
-    none;
+  50% {
+    box-shadow:
+      0 0 25px rgba(239, 68, 68, 0.15);
+  }
 }
 
 
