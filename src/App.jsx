@@ -12,7 +12,16 @@ import Signup from "./components/Signup";
 
 import "./App.css";
 
-const API_URL = "http://localhost:5000";
+// ==========================================
+// PRODUCTION API URL
+// ==========================================
+
+const API_URL = "https://g-gpt-backend.onrender.com";
+
+
+// ==========================================
+// APP
+// ==========================================
 
 function App() {
 
@@ -29,6 +38,71 @@ function App() {
   const [showSignup, setShowSignup] = useState(false);
 
   const [authChecking, setAuthChecking] = useState(true);
+
+
+  // ==========================================
+  // THEME STATE
+  // ==========================================
+
+  const [theme, setTheme] = useState(() => {
+
+    const savedTheme =
+      localStorage.getItem("g-gpt-theme");
+
+    if (savedTheme === "dark") {
+      return "dark";
+    }
+
+    if (savedTheme === "light") {
+      return "light";
+    }
+
+    // Automatically detect system theme
+    if (
+      window.matchMedia &&
+      window.matchMedia(
+        "(prefers-color-scheme: dark)"
+      ).matches
+    ) {
+      return "dark";
+    }
+
+    return "light";
+
+  });
+
+
+  // ==========================================
+  // SAVE THEME
+  // ==========================================
+
+  useEffect(() => {
+
+    localStorage.setItem(
+      "g-gpt-theme",
+      theme
+    );
+
+    document.documentElement.dataset.theme =
+      theme;
+
+  }, [theme]);
+
+
+  // ==========================================
+  // TOGGLE THEME
+  // ==========================================
+
+  const handleToggleTheme = () => {
+
+    setTheme(
+      (previousTheme) =>
+        previousTheme === "dark"
+          ? "light"
+          : "dark"
+    );
+
+  };
 
 
   // ==========================================
@@ -50,8 +124,10 @@ function App() {
   // MOBILE SIDEBAR STATE
   // ==========================================
 
-  const [mobileSidebarOpen, setMobileSidebarOpen] =
-    useState(false);
+  const [
+    mobileSidebarOpen,
+    setMobileSidebarOpen
+  ] = useState(false);
 
 
   // ==========================================
@@ -71,6 +147,7 @@ function App() {
         setAuthChecking(false);
 
         return;
+
       }
 
 
@@ -85,6 +162,7 @@ function App() {
               Authorization:
                 `Bearer ${token}`,
             },
+
           }
         );
 
@@ -163,6 +241,7 @@ function App() {
               Authorization:
                 `Bearer ${authToken}`,
             },
+
           }
         );
 
@@ -223,6 +302,8 @@ function App() {
     setMessages([]);
 
     setChatId(null);
+
+    setChats([]);
 
     setMobileSidebarOpen(false);
 
@@ -304,6 +385,7 @@ function App() {
             "Content-Type":
               "application/json",
           },
+
         }
       );
 
@@ -341,7 +423,6 @@ function App() {
       );
 
 
-      // Close mobile sidebar
       setMobileSidebarOpen(false);
 
 
@@ -381,6 +462,7 @@ function App() {
             Authorization:
               `Bearer ${authToken}`,
           },
+
         }
       );
 
@@ -429,7 +511,6 @@ function App() {
       );
 
 
-      // Close mobile sidebar
       setMobileSidebarOpen(false);
 
 
@@ -453,7 +534,10 @@ function App() {
     selectedChatId
   ) => {
 
-    if (!authToken || !selectedChatId) {
+    if (
+      !authToken ||
+      !selectedChatId
+    ) {
       return;
     }
 
@@ -469,6 +553,7 @@ function App() {
             Authorization:
               `Bearer ${authToken}`,
           },
+
         }
       );
 
@@ -489,7 +574,6 @@ function App() {
       }
 
 
-      // Remove deleted chat
       setChats(
         (previousChats) =>
           previousChats.filter(
@@ -499,8 +583,9 @@ function App() {
       );
 
 
-      // If current chat was deleted
-      if (chatId === selectedChatId) {
+      if (
+        chatId === selectedChatId
+      ) {
 
         setChatId(null);
 
@@ -545,15 +630,19 @@ function App() {
   // SEND MESSAGE
   // ==========================================
 
-  const handleSendMessage = async (text) => {
+  const handleSendMessage = async (
+    text
+  ) => {
 
     if (!authToken) {
       return;
     }
 
 
-    // Prevent empty messages
-    if (!text || !text.trim()) {
+    if (
+      !text ||
+      !text.trim()
+    ) {
       return;
     }
 
@@ -563,7 +652,7 @@ function App() {
 
 
     // ----------------------------------------
-    // CREATE ABORT CONTROLLER
+    // ABORT CONTROLLER
     // ----------------------------------------
 
     const abortController =
@@ -595,6 +684,7 @@ function App() {
                 "Content-Type":
                   "application/json",
               },
+
             }
           );
 
@@ -710,7 +800,7 @@ function App() {
     try {
 
       // --------------------------------------
-      // SEND TO BACKEND
+      // BACKEND REQUEST
       // --------------------------------------
 
       const response =
@@ -839,7 +929,8 @@ function App() {
       const currentChat =
         chats.find(
           (chat) =>
-            chat._id === currentChatId
+            chat._id ===
+            currentChatId
         );
 
 
@@ -875,6 +966,7 @@ function App() {
                   JSON.stringify({
                     title: newTitle,
                   }),
+
               }
             );
 
@@ -892,12 +984,12 @@ function App() {
             await titleResponse.json();
 
 
-          // Update sidebar
           setChats(
             (previousChats) =>
               previousChats.map(
                 (chat) =>
-                  chat._id === currentChatId
+                  chat._id ===
+                  currentChatId
                     ? titleData.chat
                     : chat
               )
@@ -923,7 +1015,8 @@ function App() {
       // ======================================
 
       if (
-        error.name === "AbortError"
+        error.name ===
+        "AbortError"
       ) {
 
         console.log(
@@ -936,7 +1029,7 @@ function App() {
 
 
       // ======================================
-      // OTHER CHAT ERROR
+      // CHAT ERROR
       // ======================================
 
       console.error(
@@ -975,23 +1068,32 @@ function App() {
 
 
   // ==========================================
-  // AUTH CHECK SCREEN
+  // AUTH LOADING SCREEN
   // ==========================================
 
   if (authChecking) {
 
     return (
-      <div className="auth-loading">
+
+      <div
+        className={`auth-loading theme-${theme}`}
+      >
 
         <div className="auth-loading-logo">
+
           G
+
         </div>
 
+
         <p>
+
           Loading G-GPT...
+
         </p>
 
       </div>
+
     );
 
   }
@@ -1006,51 +1108,128 @@ function App() {
     if (showSignup) {
 
       return (
-        <Signup
-          onSignup={handleSignup}
 
-          onShowLogin={() =>
-            setShowSignup(false)
-          }
-        />
+        <div
+          className={`auth-container theme-${theme}`}
+        >
+
+          <Signup
+
+            onSignup={
+              handleSignup
+            }
+
+            onShowLogin={() =>
+              setShowSignup(false)
+            }
+
+          />
+
+
+          {/* AUTH THEME BUTTON */}
+
+          <button
+            type="button"
+            className="auth-theme-toggle"
+            onClick={
+              handleToggleTheme
+            }
+            aria-label="Toggle theme"
+            title={
+              theme === "dark"
+                ? "Switch to light mode"
+                : "Switch to dark mode"
+            }
+          >
+
+            {theme === "dark"
+              ? "☀"
+              : "☾"}
+
+          </button>
+
+        </div>
+
       );
 
     }
 
 
     return (
-      <Login
-        onLogin={handleLogin}
 
-        onShowSignup={() =>
-          setShowSignup(true)
-        }
-      />
+      <div
+        className={`auth-container theme-${theme}`}
+      >
+
+        <Login
+
+          onLogin={
+            handleLogin
+          }
+
+          onShowSignup={() =>
+            setShowSignup(true)
+          }
+
+        />
+
+
+        {/* AUTH THEME BUTTON */}
+
+        <button
+          type="button"
+          className="auth-theme-toggle"
+          onClick={
+            handleToggleTheme
+          }
+          aria-label="Toggle theme"
+          title={
+            theme === "dark"
+              ? "Switch to light mode"
+              : "Switch to dark mode"
+          }
+        >
+
+          {theme === "dark"
+            ? "☀"
+            : "☾"}
+
+        </button>
+
+      </div>
+
     );
 
   }
 
 
   // ==========================================
-  // MAIN G-GPT APPLICATION
+  // MAIN APPLICATION
   // ==========================================
 
   return (
 
-    <div className="app">
+    <div
+      className={`app theme-${theme}`}
+    >
 
       {/* ======================================
-          MOBILE MENU BUTTON
+          MOBILE MENU
       ====================================== */}
 
       <MobileMenuButton
-        isOpen={mobileSidebarOpen}
+
+        isOpen={
+          mobileSidebarOpen
+        }
 
         onClick={() =>
           setMobileSidebarOpen(
-            (previous) => !previous
+            (previous) =>
+              !previous
           )
         }
+
       />
 
 
@@ -1061,11 +1240,16 @@ function App() {
       {mobileSidebarOpen && (
 
         <div
-          className="mobile-sidebar-backdrop"
+
+          className=
+            "mobile-sidebar-backdrop"
 
           onClick={() =>
-            setMobileSidebarOpen(false)
+            setMobileSidebarOpen(
+              false
+            )
           }
+
         />
 
       )}
@@ -1076,27 +1260,47 @@ function App() {
       ====================================== */}
 
       <div
-        className={`sidebar-wrapper ${
-          mobileSidebarOpen
-            ? "mobile-sidebar-open"
-            : ""
-        }`}
+
+        className={
+          `sidebar-wrapper ${
+            mobileSidebarOpen
+              ? "mobile-sidebar-open"
+              : ""
+          }`
+        }
+
       >
 
         <Sidebar
-          user={user}
 
-          onLogout={handleLogout}
+          user={
+            user
+          }
 
-          chats={chats}
+          onLogout={
+            handleLogout
+          }
 
-          activeChat={chatId}
+          chats={
+            chats
+          }
 
-          onNewChat={handleNewChat}
+          activeChat={
+            chatId
+          }
 
-          onSelectChat={handleSelectChat}
+          onNewChat={
+            handleNewChat
+          }
 
-          onDeleteChat={handleDeleteChat}
+          onSelectChat={
+            handleSelectChat
+          }
+
+          onDeleteChat={
+            handleDeleteChat
+          }
+
         />
 
       </div>
@@ -1108,11 +1312,66 @@ function App() {
 
       <main className="chat-area">
 
-        <ChatHeader
-          user={user}
 
-          onLogout={handleLogout}
+        {/* ====================================
+            CHAT HEADER
+        ==================================== */}
+
+        <ChatHeader
+
+          user={
+            user
+          }
+
+          onLogout={
+            handleLogout
+          }
+
         />
+
+
+        {/* ====================================
+            THEME SWITCH
+        ==================================== */}
+
+        <button
+
+          type="button"
+
+          className="app-theme-toggle"
+
+          onClick={
+            handleToggleTheme
+          }
+
+          aria-label="Toggle theme"
+
+          title={
+            theme === "dark"
+              ? "Switch to light mode"
+              : "Switch to dark mode"
+          }
+
+        >
+
+          <span className="theme-icon">
+
+            {theme === "dark"
+              ? "☀"
+              : "☾"}
+
+          </span>
+
+
+          <span className="theme-label">
+
+            {theme === "dark"
+              ? "Light"
+              : "Dark"}
+
+          </span>
+
+        </button>
 
 
         {/* ====================================
@@ -1122,7 +1381,10 @@ function App() {
         {messages.length === 0 ? (
 
           <EmptyChat
-            user={user}
+
+            user={
+              user
+            }
 
             onPromptClick={
               handleSendMessage
@@ -1133,9 +1395,15 @@ function App() {
         ) : (
 
           <ChatWindow
-            messages={messages}
 
-            isLoading={isLoading}
+            messages={
+              messages
+            }
+
+            isLoading={
+              isLoading
+            }
+
           />
 
         )}
@@ -1146,6 +1414,7 @@ function App() {
         ==================================== */}
 
         <MessageComposer
+
           onSendMessage={
             handleSendMessage
           }
@@ -1157,6 +1426,7 @@ function App() {
           disabled={
             isLoading
           }
+
         />
 
       </main>

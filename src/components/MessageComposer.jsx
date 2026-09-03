@@ -83,14 +83,13 @@ function MessageComposer({
 
         ) : (
 
-          <button
-            type="submit"
-            className="send-btn"
-            disabled={!input.trim()}
-            aria-label="Send message"
-          >
-            ↑
-          </button>
+         <button
+  type="submit"
+  className="send-btn"
+  disabled={disabled}
+>
+  <span>G</span>
+</button>
 
         )}
 
