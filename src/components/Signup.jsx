@@ -22,7 +22,7 @@ function Signup({ onSignup, onShowLogin }) {
       setLoading(true);
 
       const response = await fetch(
-        "http://localhost:5000/api/auth/signup",
+        "https://g-gpt-backend.onrender.com/api/auth/signup",
         {
           method: "POST",
 
