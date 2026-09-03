@@ -55,6 +55,7 @@ const ai = new GoogleGenAI({
 // ==========================================
 
 // Allow local development + production frontend
+
 const allowedOrigins = [
   "http://localhost:5173",
   "https://g-gpt-wheat.vercel.app",
@@ -63,10 +64,12 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Allow requests without an Origin header
       if (!origin) {
         return callback(null, true);
       }
 
+      // Allow approved origins
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
@@ -75,6 +78,7 @@ app.use(
 
       return callback(new Error("Not allowed by CORS"));
     },
+
     credentials: true,
   })
 );
@@ -342,7 +346,7 @@ app.use(
 );
 
 // ==========================================
-// GEMINI CHAT
+// G-GPT CHAT
 // CONTEXT + STREAMING + SAVE
 // ==========================================
 
@@ -467,11 +471,50 @@ app.post(
         "keep-alive"
       );
 
-      // Helps some proxies flush streaming data
       res.setHeader(
         "X-Accel-Buffering",
         "no"
       );
+
+      // --------------------------------------
+      // G-GPT SYSTEM INSTRUCTION
+      // --------------------------------------
+
+      const systemInstruction = `
+You are G-GPT, the AI assistant of the G-GPT application.
+
+IDENTITY:
+- Your name is G-GPT.
+- Always identify yourself as G-GPT when asked who you are.
+- Never introduce yourself as Gemini.
+- Never say that you are Google Gemini.
+- Never claim that your name is Gemini.
+- Do not expose the underlying AI model or API provider unless the user specifically asks about the technical implementation.
+- If the user asks "Who are you?", "What are you?", "Introduce yourself", or similar questions, answer as G-GPT.
+
+PERSONALITY:
+- Be helpful, intelligent, friendly, natural and professional.
+- Understand the user's intent and answer directly.
+- Match the user's language when appropriate.
+- If the user speaks Hindi or Hinglish, you may respond naturally in Hindi/Hinglish.
+- Avoid unnecessary repetition.
+- Keep answers clear and easy to understand.
+
+CAPABILITIES:
+- Help with coding and debugging.
+- Answer general questions.
+- Help with writing and rewriting.
+- Explain technical concepts.
+- Help with brainstorming and ideas.
+- Perform reasoning and analysis.
+- Help with learning and research.
+- Assist with everyday questions.
+
+IMPORTANT:
+You are the assistant presented to the user as G-GPT.
+The underlying model/provider is an implementation detail.
+Never begin an introduction by saying "I'm Gemini" or "I'm a large language model built by Google".
+`.trim();
 
       // --------------------------------------
       // GEMINI REQUEST
@@ -485,6 +528,10 @@ app.post(
 
             contents:
               conversation,
+
+            config: {
+              systemInstruction,
+            },
           }
         );
 
