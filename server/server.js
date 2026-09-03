@@ -51,10 +51,48 @@ const ai = new GoogleGenAI({
 });
 
 // ==========================================
-// MIDDLEWARE
+// G-GPT SYSTEM INSTRUCTION
 // ==========================================
 
-// Allow local development + production frontend
+const systemInstruction = `
+You are G-GPT, the AI assistant of the G-GPT application.
+
+IDENTITY:
+- Your name is G-GPT.
+- Always identify yourself as G-GPT when asked who you are.
+- Never introduce yourself as Gemini.
+- Never say that you are Google Gemini.
+- Never claim that your name is Gemini.
+- Do not expose the underlying AI model or API provider unless the user specifically asks about the technical implementation.
+- If the user asks "Who are you?", "What are you?", "Introduce yourself", or similar questions, answer as G-GPT.
+
+PERSONALITY:
+- Be helpful, intelligent, friendly, natural and professional.
+- Understand the user's intent and answer directly.
+- Match the user's language when appropriate.
+- If the user speaks Hindi or Hinglish, respond naturally in Hindi/Hinglish.
+- Avoid unnecessary repetition.
+- Keep answers clear and easy to understand.
+
+CAPABILITIES:
+- Help with coding and debugging.
+- Answer general questions.
+- Help with writing and rewriting.
+- Explain technical concepts.
+- Help with brainstorming and ideas.
+- Perform reasoning and analysis.
+- Help with learning and research.
+- Assist with everyday questions.
+
+IMPORTANT:
+You are the assistant presented to the user as G-GPT.
+The underlying model/provider is an implementation detail.
+Never begin an introduction by saying "I'm Gemini" or "I'm a large language model built by Google".
+`.trim();
+
+// ==========================================
+// MIDDLEWARE
+// ==========================================
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -69,7 +107,6 @@ app.use(
         return callback(null, true);
       }
 
-      // Allow approved origins
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
@@ -115,187 +152,171 @@ app.get("/", (req, res) => {
 // SIGNUP
 // ==========================================
 
-app.post(
-  "/api/auth/signup",
-  async (req, res) => {
-    try {
-      const {
-        name,
-        email,
-        password,
-      } = req.body;
+app.post("/api/auth/signup", async (req, res) => {
+  try {
+    const {
+      name,
+      email,
+      password,
+    } = req.body;
 
-      // Validate input
-      if (
-        !name ||
-        !email ||
-        !password
-      ) {
-        return res.status(400).json({
-          error:
-            "Name, email and password are required",
-        });
-      }
-
-      // Validate password
-      if (password.length < 6) {
-        return res.status(400).json({
-          error:
-            "Password must be at least 6 characters",
-        });
-      }
-
-      const normalizedEmail =
-        email.trim().toLowerCase();
-
-      // Check existing user
-      const existingUser =
-        await User.findOne({
-          email: normalizedEmail,
-        });
-
-      if (existingUser) {
-        return res.status(409).json({
-          error:
-            "Email already registered",
-        });
-      }
-
-      // Hash password
-      const hashedPassword =
-        await bcrypt.hash(
-          password,
-          12
-        );
-
-      // Create user
-      const user =
-        await User.create({
-          name: name.trim(),
-          email: normalizedEmail,
-          password: hashedPassword,
-        });
-
-      res.status(201).json({
-        message:
-          "Account created successfully",
-
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-        },
-      });
-    } catch (error) {
-      console.error(
-        "❌ Signup Error:",
-        error
-      );
-
-      res.status(500).json({
+    // Validate input
+    if (!name || !email || !password) {
+      return res.status(400).json({
         error:
-          "Failed to create account",
+          "Name, email and password are required",
       });
     }
+
+    // Validate password
+    if (password.length < 6) {
+      return res.status(400).json({
+        error:
+          "Password must be at least 6 characters",
+      });
+    }
+
+    const normalizedEmail =
+      email.trim().toLowerCase();
+
+    // Check existing user
+    const existingUser =
+      await User.findOne({
+        email: normalizedEmail,
+      });
+
+    if (existingUser) {
+      return res.status(409).json({
+        error:
+          "Email already registered",
+      });
+    }
+
+    // Hash password
+    const hashedPassword =
+      await bcrypt.hash(password, 12);
+
+    // Create user
+    const user =
+      await User.create({
+        name: name.trim(),
+        email: normalizedEmail,
+        password: hashedPassword,
+      });
+
+    res.status(201).json({
+      message:
+        "Account created successfully",
+
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "❌ Signup Error:",
+      error
+    );
+
+    res.status(500).json({
+      error:
+        "Failed to create account",
+    });
   }
-);
+});
 
 // ==========================================
 // LOGIN
 // ==========================================
 
-app.post(
-  "/api/auth/login",
-  async (req, res) => {
-    try {
-      const {
-        email,
-        password,
-      } = req.body;
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const {
+      email,
+      password,
+    } = req.body;
 
-      // Validate input
-      if (
-        !email ||
-        !password
-      ) {
-        return res.status(400).json({
-          error:
-            "Email and password are required",
-        });
-      }
-
-      const normalizedEmail =
-        email.trim().toLowerCase();
-
-      // Find user
-      const user =
-        await User.findOne({
-          email: normalizedEmail,
-        });
-
-      if (!user) {
-        return res.status(401).json({
-          error:
-            "Invalid email or password",
-        });
-      }
-
-      // Compare password
-      const passwordMatch =
-        await bcrypt.compare(
-          password,
-          user.password
-        );
-
-      if (!passwordMatch) {
-        return res.status(401).json({
-          error:
-            "Invalid email or password",
-        });
-      }
-
-      // Create JWT
-      const token = jwt.sign(
-        {
-          userId:
-            user._id.toString(),
-
-          email:
-            user.email,
-        },
-
-        process.env.JWT_SECRET,
-
-        {
-          expiresIn: "7d",
-        }
-      );
-
-      res.json({
-        message:
-          "Login successful",
-
-        token,
-
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-        },
-      });
-    } catch (error) {
-      console.error(
-        "❌ Login Error:",
-        error
-      );
-
-      res.status(500).json({
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({
         error:
-          "Failed to login",
+          "Email and password are required",
       });
     }
+
+    const normalizedEmail =
+      email.trim().toLowerCase();
+
+    // Find user
+    const user =
+      await User.findOne({
+        email: normalizedEmail,
+      });
+
+    if (!user) {
+      return res.status(401).json({
+        error:
+          "Invalid email or password",
+      });
+    }
+
+    // Compare password
+    const passwordMatch =
+      await bcrypt.compare(
+        password,
+        user.password
+      );
+
+    if (!passwordMatch) {
+      return res.status(401).json({
+        error:
+          "Invalid email or password",
+      });
+    }
+
+    // Create JWT
+    const token = jwt.sign(
+      {
+        userId:
+          user._id.toString(),
+
+        email:
+          user.email,
+      },
+
+      process.env.JWT_SECRET,
+
+      {
+        expiresIn: "7d",
+      }
+    );
+
+    res.json({
+      message:
+        "Login successful",
+
+      token,
+
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "❌ Login Error:",
+      error
+    );
+
+    res.status(500).json({
+      error:
+        "Failed to login",
+    });
   }
-);
+});
 
 // ==========================================
 // CURRENT USER
@@ -346,8 +367,116 @@ app.use(
 );
 
 // ==========================================
-// G-GPT CHAT
-// CONTEXT + STREAMING + SAVE
+// GEMINI REQUEST WITH AUTOMATIC RETRY
+// ==========================================
+
+async function generateGeminiStream(
+  conversation,
+  maxRetries = 3
+) {
+  let lastError;
+
+  for (
+    let attempt = 0;
+    attempt <= maxRetries;
+    attempt++
+  ) {
+    try {
+      console.log(
+        `🤖 Gemini request attempt ${
+          attempt + 1
+        }/${maxRetries + 1}`
+      );
+
+      const responseStream =
+        await ai.models.generateContentStream({
+          model:
+            "gemini-3.6-flash",
+
+          contents:
+            conversation,
+
+          config: {
+            systemInstruction,
+          },
+        });
+
+      console.log(
+        "✅ Gemini stream started successfully"
+      );
+
+      return responseStream;
+    } catch (error) {
+      lastError = error;
+
+      const errorString =
+        JSON.stringify(error);
+
+      const errorMessage =
+        error?.message ||
+        "";
+
+      const is503 =
+        error?.status === 503 ||
+        error?.code === 503 ||
+        errorString.includes(
+          '"code":503'
+        ) ||
+        errorString.includes(
+          "Service Unavailable"
+        ) ||
+        errorMessage.includes(
+          "high demand"
+        ) ||
+        errorMessage.includes(
+          "UNAVAILABLE"
+        );
+
+      if (!is503) {
+        console.error(
+          "❌ Non-retryable Gemini error:",
+          error
+        );
+
+        throw error;
+      }
+
+      // Don't retry after the final attempt
+      if (attempt === maxRetries) {
+        console.error(
+          "❌ Gemini still unavailable after all retries"
+        );
+
+        throw error;
+      }
+
+      // Exponential backoff:
+      // 1 second → 2 seconds → 4 seconds
+      const delay =
+        1000 * Math.pow(2, attempt);
+
+      console.warn(
+        `⚠️ Gemini is temporarily unavailable (503). Retrying in ${
+          delay / 1000
+        } second(s)...`
+      );
+
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            delay
+          )
+      );
+    }
+  }
+
+  throw lastError;
+}
+
+// ==========================================
+// GEMINI CHAT
+// CONTEXT + STREAMING + SAVE + RETRY
 // ==========================================
 
 app.post(
@@ -477,62 +606,13 @@ app.post(
       );
 
       // --------------------------------------
-      // G-GPT SYSTEM INSTRUCTION
-      // --------------------------------------
-
-      const systemInstruction = `
-You are G-GPT, the AI assistant of the G-GPT application.
-
-IDENTITY:
-- Your name is G-GPT.
-- Always identify yourself as G-GPT when asked who you are.
-- Never introduce yourself as Gemini.
-- Never say that you are Google Gemini.
-- Never claim that your name is Gemini.
-- Do not expose the underlying AI model or API provider unless the user specifically asks about the technical implementation.
-- If the user asks "Who are you?", "What are you?", "Introduce yourself", or similar questions, answer as G-GPT.
-
-PERSONALITY:
-- Be helpful, intelligent, friendly, natural and professional.
-- Understand the user's intent and answer directly.
-- Match the user's language when appropriate.
-- If the user speaks Hindi or Hinglish, you may respond naturally in Hindi/Hinglish.
-- Avoid unnecessary repetition.
-- Keep answers clear and easy to understand.
-
-CAPABILITIES:
-- Help with coding and debugging.
-- Answer general questions.
-- Help with writing and rewriting.
-- Explain technical concepts.
-- Help with brainstorming and ideas.
-- Perform reasoning and analysis.
-- Help with learning and research.
-- Assist with everyday questions.
-
-IMPORTANT:
-You are the assistant presented to the user as G-GPT.
-The underlying model/provider is an implementation detail.
-Never begin an introduction by saying "I'm Gemini" or "I'm a large language model built by Google".
-`.trim();
-
-      // --------------------------------------
-      // GEMINI REQUEST
+      // GEMINI REQUEST WITH RETRY
       // --------------------------------------
 
       const responseStream =
-        await ai.models.generateContentStream(
-          {
-            model:
-              "gemini-3.6-flash",
-
-            contents:
-              conversation,
-
-            config: {
-              systemInstruction,
-            },
-          }
+        await generateGeminiStream(
+          conversation,
+          3
         );
 
       // --------------------------------------
@@ -573,9 +653,9 @@ Never begin an introduction by saying "I'm Gemini" or "I'm a large language mode
           content:
             fullResponse.trim(),
         });
-      }
 
-      await chat.save();
+        await chat.save();
+      }
 
       // --------------------------------------
       // END STREAM
@@ -588,18 +668,43 @@ Never begin an introduction by saying "I'm Gemini" or "I'm a large language mode
         error
       );
 
-      // If headers haven't been sent,
-      // return a normal JSON error.
+      // --------------------------------------
+      // IF STREAMING HAS NOT STARTED
+      // --------------------------------------
+
       if (!res.headersSent) {
+        const is503 =
+          error?.status === 503 ||
+          error?.code === 503 ||
+          JSON.stringify(error).includes(
+            '"code":503'
+          ) ||
+          JSON.stringify(error).includes(
+            "Service Unavailable"
+          );
+
+        if (is503) {
+          return res.status(503).json({
+            error:
+              "G-GPT is temporarily busy. Please try again in a moment.",
+          });
+        }
+
         return res.status(500).json({
           error:
             "Failed to generate AI response",
         });
       }
 
-      // If streaming already started,
-      // close the response.
-      res.end();
+      // --------------------------------------
+      // IF STREAMING ALREADY STARTED
+      // --------------------------------------
+
+      try {
+        res.end();
+      } catch {
+        // Ignore response close errors
+      }
     }
   }
 );
