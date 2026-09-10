@@ -83,7 +83,7 @@ function MessageComposer({ onSendMessage, onStop, disabled }) {
       </form>
 
       <p className="composer-disclaimer">
-        G-GPT can make mistakes. Check important information.
+        G-GPT is Ai tera baap nahi jo harbar sahi ho, g-gpt can make mistakes.
       </p>
     </div>
   );
