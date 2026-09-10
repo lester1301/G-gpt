@@ -2,197 +2,116 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-function Message({
-  role,
-  content,
-  isLoading,
-}) {
+function Message({ role, content, isLoading, isLastAssistant, onRegenerate }) {
   const isUser = role === "user";
-
   const [copied, setCopied] = useState(false);
-
+  const [messageCopied, setMessageCopied] = useState(false);
+  const [feedback, setFeedback] = useState(null); // "up" | "down" | null
 
   // ==========================================
-  // COPY CODE
+  // COPY CODE BLOCK
   // ==========================================
-
   const handleCopy = async (code) => {
     try {
-
-      await navigator.clipboard.writeText(
-        code
-      );
-
+      await navigator.clipboard.writeText(code);
       setCopied(true);
-
-      setTimeout(() => {
-        setCopied(false);
-      }, 2000);
-
+      setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-
-      console.error(
-        "Copy failed:",
-        error
-      );
-
+      console.error("Copy failed:", error);
     }
   };
 
+  // ==========================================
+  // COPY WHOLE MESSAGE
+  // ==========================================
+  const handleCopyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setMessageCopied(true);
+      setTimeout(() => setMessageCopied(false), 2000);
+    } catch (error) {
+      console.error("Copy failed:", error);
+    }
+  };
+
+  // ==========================================
+  // FEEDBACK (visual only for now)
+  // ==========================================
+  const handleFeedback = (value) => {
+    setFeedback((previous) => (previous === value ? null : value));
+  };
 
   return (
     <div
       className={`message-row ${
-        isUser
-          ? "user-message"
-          : "assistant-message"
+        isUser ? "user-message" : "assistant-message"
       }`}
     >
-
       {/* ======================================
           AVATAR
       ====================================== */}
-
-      <div className="message-avatar">
-        {isUser ? "U" : "G"}
-      </div>
-
+      <div className="message-avatar">{isUser ? "U" : "G"}</div>
 
       {/* ======================================
           MESSAGE CONTENT
       ====================================== */}
-
       <div className="message-content">
-
-        <div className="message-name">
-          {isUser ? "You" : "G-GPT"}
-        </div>
-
+        <div className="message-name">{isUser ? "You" : "G-GPT"}</div>
 
         {/* ====================================
             MESSAGE TEXT
         ==================================== */}
-
         <div className="message-text">
-
-          {/* ------------------------------------
-              TYPING INDICATOR
-          ------------------------------------ */}
-
           {isLoading ? (
-
             <div className="typing-indicator">
-
               <span></span>
               <span></span>
               <span></span>
-
             </div>
-
           ) : (
-
-            /* ----------------------------------
-               MARKDOWN
-            ---------------------------------- */
-
             <ReactMarkdown
-              remarkPlugins={[
-                remarkGfm,
-              ]}
-
+              remarkPlugins={[remarkGfm]}
               components={{
-
-                // ==============================
-                // CODE BLOCK
-                // ==============================
-
                 pre({ children }) {
-
                   return (
                     <div className="code-block-wrapper">
-
                       <div className="code-block-header">
-
-                        <span>
-                          Code
-                        </span>
-
+                        <span>Code</span>
                         <button
                           type="button"
                           className="copy-code-btn"
                           onClick={() => {
-
-                            const code =
-                              children
-                                ?.props
-                                ?.children || "";
-
-                            handleCopy(
-                              String(code)
-                            );
-
+                            const code = children?.props?.children || "";
+                            handleCopy(String(code));
                           }}
                         >
-                          {copied
-                            ? "Copied!"
-                            : "Copy"}
+                          {copied ? "Copied!" : "Copy"}
                         </button>
-
                       </div>
-
-
-                      <pre>
-                        {children}
-                      </pre>
-
+                      <pre>{children}</pre>
                     </div>
                   );
                 },
+                code({ className, children, ...props }) {
+                  const codeText = String(children).replace(/\n$/, "");
+                  const isBlock =
+                    Boolean(className) || codeText.includes("\n");
 
-
-                // ==============================
-                // CODE
-                // ==============================
-
-                code({
-                  inline,
-                  children,
-                  ...props
-                }) {
-
-                  if (inline) {
-
+                  if (!isBlock) {
                     return (
-                      <code
-                        className="inline-code"
-                        {...props}
-                      >
+                      <code className="inline-code" {...props}>
                         {children}
                       </code>
                     );
-
                   }
 
-
                   return (
-                    <code {...props}>
+                    <code className={className} {...props}>
                       {children}
                     </code>
                   );
-
                 },
-
-
-                // ==============================
-                // LINKS
-                // ==============================
-
-                a({
-                  children,
-                  href,
-                  ...props
-                }) {
-
+                a({ children, href, ...props }) {
                   return (
                     <a
                       href={href}
@@ -203,20 +122,69 @@ function Message({
                       {children}
                     </a>
                   );
-
                 },
-
               }}
             >
               {content}
             </ReactMarkdown>
-
           )}
-
         </div>
 
-      </div>
+        {/* ====================================
+            MESSAGE ACTIONS
+            (hidden while streaming, and only the
+            assistant gets regenerate / feedback)
+        ==================================== */}
+        {!isLoading && content && (
+          <div className="message-actions">
+            <button
+              type="button"
+              className="message-action-btn"
+              onClick={handleCopyMessage}
+              title="Copy message"
+            >
+              {messageCopied ? "✓ Copied" : "⧉ Copy"}
+            </button>
 
+            {!isUser && (
+              <>
+                {isLastAssistant && (
+                  <button
+                    type="button"
+                    className="message-action-btn"
+                    onClick={onRegenerate}
+                    title="Regenerate response"
+                  >
+                    ↻ Regenerate
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className={`message-action-btn ${
+                    feedback === "up" ? "active" : ""
+                  }`}
+                  onClick={() => handleFeedback("up")}
+                  title="Good response"
+                >
+                  👍
+                </button>
+
+                <button
+                  type="button"
+                  className={`message-action-btn ${
+                    feedback === "down" ? "active" : ""
+                  }`}
+                  onClick={() => handleFeedback("down")}
+                  title="Bad response"
+                >
+                  👎
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

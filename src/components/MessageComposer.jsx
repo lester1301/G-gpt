@@ -1,15 +1,22 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-function MessageComposer({
-  onSendMessage,
-  onStop,
-  disabled,
-}) {
+function MessageComposer({ onSendMessage, onStop, disabled }) {
   const [input, setInput] = useState("");
+  const textareaRef = useRef(null);
+
+  // ==========================================
+  // AUTO-RESIZE TEXTAREA
+  // ==========================================
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+  }, [input]);
 
   const handleSubmit = (event) => {
     event.preventDefault();
-
     const message = input.trim();
 
     if (!message || disabled) {
@@ -17,60 +24,48 @@ function MessageComposer({
     }
 
     onSendMessage(message);
-
     setInput("");
   };
 
   const handleKeyDown = (event) => {
-    if (
-      event.key === "Enter" &&
-      !event.shiftKey
-    ) {
-      event.preventDefault();
+    // Don't submit while composing (IME input for Hindi/Japanese/etc.)
+    if (event.isComposing) {
+      return;
+    }
 
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
       handleSubmit(event);
     }
   };
 
   return (
     <div className="composer-wrapper">
-
-      <form
-        className="message-composer"
-        onSubmit={handleSubmit}
-      >
-
+      <form className="message-composer" onSubmit={handleSubmit}>
         {/* ADD BUTTON */}
         <button
           type="button"
           className="composer-add-btn"
           disabled={disabled}
           aria-label="Add"
+          title="Attachments coming soon"
         >
           +
         </button>
 
-
         {/* MESSAGE INPUT */}
         <textarea
+          ref={textareaRef}
           value={input}
-          onChange={(event) =>
-            setInput(event.target.value)
-          }
+          onChange={(event) => setInput(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={
-            disabled
-              ? "G-GPT is thinking..."
-              : "Message G-GPT..."
-          }
+          placeholder={disabled ? "G-GPT is thinking..." : "Message G-GPT..."}
           rows="1"
           disabled={disabled}
         />
 
-
         {/* SEND / STOP BUTTON */}
         {disabled ? (
-
           <button
             type="button"
             className="stop-btn"
@@ -80,26 +75,16 @@ function MessageComposer({
           >
             ■
           </button>
-
         ) : (
-
-         <button
-  type="submit"
-  className="send-btn"
-  disabled={disabled}
->
-  <span>G</span>
-</button>
-
+          <button type="submit" className="send-btn" disabled={disabled || !input.trim()}>
+            <span>G</span>
+          </button>
         )}
-
       </form>
-
 
       <p className="composer-disclaimer">
         G-GPT can make mistakes. Check important information.
       </p>
-
     </div>
   );
 }

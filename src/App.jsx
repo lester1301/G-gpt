@@ -1,5 +1,5 @@
+import Settings from "./components/Settings";
 import { useEffect, useRef, useState } from "react";
-
 import Sidebar from "./components/Sidebar";
 import ChatHeader from "./components/ChatHeader";
 import ChatWindow from "./components/ChatWindow";
@@ -43,7 +43,7 @@ function App() {
   // ==========================================
   // THEME STATE
   // ==========================================
-
+const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState(() => {
 
     const savedTheme =
@@ -112,6 +112,7 @@ function App() {
   const [messages, setMessages] = useState([]);
 
   const [chatId, setChatId] = useState(null);
+  const [isChatLoading, setIsChatLoading] = useState(false);
 
   const [chats, setChats] = useState([]);
 
@@ -449,6 +450,7 @@ function App() {
     if (!authToken) {
       return;
     }
+     setIsChatLoading(true);
 
 
     try {
@@ -520,6 +522,8 @@ function App() {
         "Select chat error:",
         error
       );
+       } finally {
+    setIsChatLoading(false);
 
     }
 
@@ -620,10 +624,63 @@ function App() {
 
     }
 
+    
 
     setIsLoading(false);
 
   };
+
+  const handleRegenerate = async (assistantMessageId) => {
+  if (!authToken || !chatId) return;
+
+  const abortController = new AbortController();
+  abortControllerRef.current = abortController;
+
+  setMessages((prev) =>
+    prev.map((m) => (m.id === assistantMessageId ? { ...m, content: "" } : m))
+  );
+  setIsLoading(true);
+
+  try {
+    const response = await fetch(`${API_URL}/api/chat/regenerate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ chatId }),
+      signal: abortController.signal,
+    });
+
+    if (!response.ok || !response.body) {
+      throw new Error("Failed to regenerate response");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullResponse = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      fullResponse += decoder.decode(value, { stream: true });
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMessageId ? { ...m, content: fullResponse } : m
+        )
+      );
+    }
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    console.error("Regenerate error:", error);
+  } finally {
+    setIsLoading(false);
+    abortControllerRef.current = null;
+  }
+};
+
 
 
   // ==========================================
@@ -1301,6 +1358,8 @@ function App() {
             handleDeleteChat
           }
 
+          onOpenSettings={() => setShowSettings(true)}
+
         />
 
       </div>
@@ -1334,45 +1393,20 @@ function App() {
             THEME SWITCH
         ==================================== */}
 
-        <button
-
-          type="button"
-
-          className="app-theme-toggle"
-
-          onClick={
-            handleToggleTheme
-          }
-
-          aria-label="Toggle theme"
-
-          title={
-            theme === "dark"
-              ? "Switch to light mode"
-              : "Switch to dark mode"
-          }
-
-        >
-
-          <span className="theme-icon">
-
-            {theme === "dark"
-              ? "☀"
-              : "☾"}
-
-          </span>
-
-
-          <span className="theme-label">
-
-            {theme === "dark"
-              ? "Light"
-              : "Dark"}
-
-          </span>
-
-        </button>
-
+        <Settings
+  isOpen={showSettings}
+  onClose={() => setShowSettings(false)}
+  theme={theme}
+  onToggleTheme={handleToggleTheme}
+  user={user}
+  chats={chats}
+  onClearAllChats={async () => {
+    for (const chat of chats) {
+      await handleDeleteChat(chat._id);
+    }
+    setShowSettings(false);
+  }}
+/>
 
         {/* ====================================
             EMPTY CHAT
@@ -1403,6 +1437,9 @@ function App() {
             isLoading={
               isLoading
             }
+
+            isChatLoading={isChatLoading}
+  onRegenerate={handleRegenerate}
 
           />
 

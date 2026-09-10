@@ -4,9 +4,8 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-
+import rateLimit from "express-rate-limit";
 import { GoogleGenAI } from "@google/genai";
-
 import User from "./models/User.js";
 import Chat from "./models/Chat.js";
 import authMiddleware from "./middleware/auth.js";
@@ -15,29 +14,23 @@ import chatRoutes from "./routes/chatRoutes.js";
 // ==========================================
 // ENVIRONMENT VARIABLES
 // ==========================================
-
 dotenv.config();
 
 // ==========================================
 // APP SETUP
 // ==========================================
-
 const app = express();
-
 const PORT = process.env.PORT || 5000;
 
 // ==========================================
 // ENVIRONMENT CHECK
 // ==========================================
-
 if (!process.env.GEMINI_API_KEY) {
   console.warn("⚠️ GEMINI_API_KEY is not configured");
 }
-
 if (!process.env.MONGODB_URI) {
   console.warn("⚠️ MONGODB_URI is not configured");
 }
-
 if (!process.env.JWT_SECRET) {
   console.warn("⚠️ JWT_SECRET is not configured");
 }
@@ -45,7 +38,6 @@ if (!process.env.JWT_SECRET) {
 // ==========================================
 // GEMINI AI
 // ==========================================
-
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
@@ -53,7 +45,6 @@ const ai = new GoogleGenAI({
 // ==========================================
 // G-GPT SYSTEM INSTRUCTION
 // ==========================================
-
 const systemInstruction = `
 You are G-GPT, the AI assistant of the G-GPT application.
 
@@ -93,7 +84,6 @@ Never begin an introduction by saying "I'm Gemini" or "I'm a large language mode
 // ==========================================
 // MIDDLEWARE
 // ==========================================
-
 const allowedOrigins = [
   "http://localhost:5173",
   "https://g-gpt-wheat.vercel.app",
@@ -106,16 +96,12 @@ app.use(
       if (!origin) {
         return callback(null, true);
       }
-
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-
       console.log("❌ CORS blocked origin:", origin);
-
       return callback(new Error("Not allowed by CORS"));
     },
-
     credentials: true,
   })
 );
@@ -123,25 +109,36 @@ app.use(
 app.use(express.json());
 
 // ==========================================
+// RATE LIMITERS
+// ==========================================
+// Applied only to auth routes, so normal chat
+// usage is never affected — just brute-force
+// login/signup attempts.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per IP per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many attempts. Please try again in a few minutes.",
+  },
+});
+
+// ==========================================
 // MONGODB CONNECTION
 // ==========================================
-
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => {
     console.log("✅ MongoDB connected successfully");
   })
   .catch((error) => {
-    console.error(
-      "❌ MongoDB connection error:",
-      error.message
-    );
+    console.error("❌ MongoDB connection error:", error.message);
   });
 
 // ==========================================
 // TEST ROUTE
 // ==========================================
-
 app.get("/", (req, res) => {
   res.json({
     message: "G-GPT server is running",
@@ -151,63 +148,49 @@ app.get("/", (req, res) => {
 // ==========================================
 // SIGNUP
 // ==========================================
-
-app.post("/api/auth/signup", async (req, res) => {
+app.post("/api/auth/signup", authLimiter, async (req, res) => {
   try {
-    const {
-      name,
-      email,
-      password,
-    } = req.body;
+    const { name, email, password } = req.body;
 
     // Validate input
     if (!name || !email || !password) {
       return res.status(400).json({
-        error:
-          "Name, email and password are required",
+        error: "Name, email and password are required",
       });
     }
 
     // Validate password
     if (password.length < 6) {
       return res.status(400).json({
-        error:
-          "Password must be at least 6 characters",
+        error: "Password must be at least 6 characters",
       });
     }
 
-    const normalizedEmail =
-      email.trim().toLowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
 
     // Check existing user
-    const existingUser =
-      await User.findOne({
-        email: normalizedEmail,
-      });
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+    });
 
     if (existingUser) {
       return res.status(409).json({
-        error:
-          "Email already registered",
+        error: "Email already registered",
       });
     }
 
     // Hash password
-    const hashedPassword =
-      await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create user
-    const user =
-      await User.create({
-        name: name.trim(),
-        email: normalizedEmail,
-        password: hashedPassword,
-      });
+    const user = await User.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      password: hashedPassword,
+    });
 
     res.status(201).json({
-      message:
-        "Account created successfully",
-
+      message: "Account created successfully",
       user: {
         id: user._id,
         name: user.name,
@@ -215,14 +198,9 @@ app.post("/api/auth/signup", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(
-      "❌ Signup Error:",
-      error
-    );
-
+    console.error("❌ Signup Error:", error);
     res.status(500).json({
-      error:
-        "Failed to create account",
+      error: "Failed to create account",
     });
   }
 });
@@ -230,75 +208,54 @@ app.post("/api/auth/signup", async (req, res) => {
 // ==========================================
 // LOGIN
 // ==========================================
-
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", authLimiter, async (req, res) => {
   try {
-    const {
-      email,
-      password,
-    } = req.body;
+    const { email, password } = req.body;
 
     // Validate input
     if (!email || !password) {
       return res.status(400).json({
-        error:
-          "Email and password are required",
+        error: "Email and password are required",
       });
     }
 
-    const normalizedEmail =
-      email.trim().toLowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
 
     // Find user
-    const user =
-      await User.findOne({
-        email: normalizedEmail,
-      });
+    const user = await User.findOne({
+      email: normalizedEmail,
+    });
 
     if (!user) {
       return res.status(401).json({
-        error:
-          "Invalid email or password",
+        error: "Invalid email or password",
       });
     }
 
     // Compare password
-    const passwordMatch =
-      await bcrypt.compare(
-        password,
-        user.password
-      );
+    const passwordMatch = await bcrypt.compare(password, user.password);
 
     if (!passwordMatch) {
       return res.status(401).json({
-        error:
-          "Invalid email or password",
+        error: "Invalid email or password",
       });
     }
 
     // Create JWT
     const token = jwt.sign(
       {
-        userId:
-          user._id.toString(),
-
-        email:
-          user.email,
+        userId: user._id.toString(),
+        email: user.email,
       },
-
       process.env.JWT_SECRET,
-
       {
         expiresIn: "7d",
       }
     );
 
     res.json({
-      message:
-        "Login successful",
-
+      message: "Login successful",
       token,
-
       user: {
         id: user._id,
         name: user.name,
@@ -306,14 +263,9 @@ app.post("/api/auth/login", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(
-      "❌ Login Error:",
-      error
-    );
-
+    console.error("❌ Login Error:", error);
     res.status(500).json({
-      error:
-        "Failed to login",
+      error: "Failed to login",
     });
   }
 });
@@ -321,153 +273,85 @@ app.post("/api/auth/login", async (req, res) => {
 // ==========================================
 // CURRENT USER
 // ==========================================
+app.get("/api/auth/me", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select("-password");
 
-app.get(
-  "/api/auth/me",
-  authMiddleware,
-  async (req, res) => {
-    try {
-      const user =
-        await User.findById(
-          req.user.userId
-        ).select("-password");
-
-      if (!user) {
-        return res.status(404).json({
-          error:
-            "User not found",
-        });
-      }
-
-      res.json({
-        user,
-      });
-    } catch (error) {
-      console.error(
-        "❌ Auth Check Error:",
-        error
-      );
-
-      res.status(500).json({
-        error:
-          "Failed to get user",
+    if (!user) {
+      return res.status(404).json({
+        error: "User not found",
       });
     }
+
+    res.json({
+      user,
+    });
+  } catch (error) {
+    console.error("❌ Auth Check Error:", error);
+    res.status(500).json({
+      error: "Failed to get user",
+    });
   }
-);
+});
 
 // ==========================================
 // CHAT HISTORY ROUTES
 // ==========================================
-
-app.use(
-  "/api/chats",
-  authMiddleware,
-  chatRoutes
-);
+app.use("/api/chats", authMiddleware, chatRoutes);
 
 // ==========================================
 // GEMINI REQUEST WITH AUTOMATIC RETRY
 // ==========================================
-
-async function generateGeminiStream(
-  conversation,
-  maxRetries = 3
-) {
+async function generateGeminiStream(conversation, maxRetries = 3) {
   let lastError;
 
-  for (
-    let attempt = 0;
-    attempt <= maxRetries;
-    attempt++
-  ) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       console.log(
-        `🤖 Gemini request attempt ${
-          attempt + 1
-        }/${maxRetries + 1}`
+        `🤖 Gemini request attempt ${attempt + 1}/${maxRetries + 1}`
       );
 
-      const responseStream =
-        await ai.models.generateContentStream({
-          model:
-            "gemini-3.6-flash",
+      const responseStream = await ai.models.generateContentStream({
+        model: "gemini-3.6-flash",
+        contents: conversation,
+        config: {
+          systemInstruction,
+        },
+      });
 
-          contents:
-            conversation,
-
-          config: {
-            systemInstruction,
-          },
-        });
-
-      console.log(
-        "✅ Gemini stream started successfully"
-      );
-
+      console.log("✅ Gemini stream started successfully");
       return responseStream;
     } catch (error) {
       lastError = error;
-
-      const errorString =
-        JSON.stringify(error);
-
-      const errorMessage =
-        error?.message ||
-        "";
-
+      const errorString = JSON.stringify(error);
+      const errorMessage = error?.message || "";
       const is503 =
         error?.status === 503 ||
         error?.code === 503 ||
-        errorString.includes(
-          '"code":503'
-        ) ||
-        errorString.includes(
-          "Service Unavailable"
-        ) ||
-        errorMessage.includes(
-          "high demand"
-        ) ||
-        errorMessage.includes(
-          "UNAVAILABLE"
-        );
+        errorString.includes('"code":503') ||
+        errorString.includes("Service Unavailable") ||
+        errorMessage.includes("high demand") ||
+        errorMessage.includes("UNAVAILABLE");
 
       if (!is503) {
-        console.error(
-          "❌ Non-retryable Gemini error:",
-          error
-        );
-
+        console.error("❌ Non-retryable Gemini error:", error);
         throw error;
       }
 
       // Don't retry after the final attempt
       if (attempt === maxRetries) {
-        console.error(
-          "❌ Gemini still unavailable after all retries"
-        );
-
+        console.error("❌ Gemini still unavailable after all retries");
         throw error;
       }
 
-      // Exponential backoff:
-      // 1 second → 2 seconds → 4 seconds
-      const delay =
-        1000 * Math.pow(2, attempt);
-
+      // Exponential backoff: 1 second → 2 seconds → 4 seconds
+      const delay = 1000 * Math.pow(2, attempt);
       console.warn(
         `⚠️ Gemini is temporarily unavailable (503). Retrying in ${
           delay / 1000
         } second(s)...`
       );
-
-      await new Promise(
-        (resolve) =>
-          setTimeout(
-            resolve,
-            delay
-          )
-      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
@@ -475,277 +359,229 @@ async function generateGeminiStream(
 }
 
 // ==========================================
-// GEMINI CHAT
-// CONTEXT + STREAMING + SAVE + RETRY
+// GEMINI CHAT — CONTEXT + STREAMING + SAVE + RETRY
 // ==========================================
+app.post("/api/chat", authMiddleware, async (req, res) => {
+  try {
+    const { message, chatId } = req.body;
 
-app.post(
-  "/api/chat",
-  authMiddleware,
-  async (req, res) => {
-    try {
-      const {
-        message,
-        chatId,
-      } = req.body;
-
-      // --------------------------------------
-      // VALIDATE MESSAGE
-      // --------------------------------------
-
-      if (
-        !message ||
-        !message.trim()
-      ) {
-        return res.status(400).json({
-          error:
-            "Message is required",
-        });
-      }
-
-      // --------------------------------------
-      // VALIDATE CHAT ID
-      // --------------------------------------
-
-      if (
-        !chatId ||
-        !mongoose.Types.ObjectId.isValid(
-          chatId
-        )
-      ) {
-        return res.status(400).json({
-          error:
-            "Valid chatId is required",
-        });
-      }
-
-      // --------------------------------------
-      // FIND USER'S CHAT
-      // --------------------------------------
-
-      const chat =
-        await Chat.findOne({
-          _id: chatId,
-          userId: req.user.userId,
-        });
-
-      if (!chat) {
-        return res.status(404).json({
-          error:
-            "Chat not found",
-        });
-      }
-
-      // --------------------------------------
-      // SAVE USER MESSAGE
-      // --------------------------------------
-
-      chat.messages.push({
-        role: "user",
-        content: message.trim(),
+    // Validate message
+    if (!message || !message.trim()) {
+      return res.status(400).json({
+        error: "Message is required",
       });
+    }
 
-      // --------------------------------------
-      // CREATE CHAT TITLE
-      // --------------------------------------
+    // Validate chat id
+    if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) {
+      return res.status(400).json({
+        error: "Valid chatId is required",
+      });
+    }
 
-      if (
-        chat.title === "New Chat"
-      ) {
-        chat.title =
-          message
-            .trim()
-            .slice(0, 50);
-      }
+    // Find user's chat
+    const chat = await Chat.findOne({
+      _id: chatId,
+      userId: req.user.userId,
+    });
 
-      await chat.save();
+    if (!chat) {
+      return res.status(404).json({
+        error: "Chat not found",
+      });
+    }
 
-      // --------------------------------------
-      // BUILD CONVERSATION HISTORY
-      // --------------------------------------
+    // Save user message
+    chat.messages.push({
+      role: "user",
+      content: message.trim(),
+    });
 
-      const conversation =
-        chat.messages.map(
-          (msg) => ({
-            role:
-              msg.role === "assistant"
-                ? "model"
-                : "user",
+    // Create chat title
+    if (chat.title === "New Chat") {
+      chat.title = message.trim().slice(0, 50);
+    }
 
-            parts: [
-              {
-                text:
-                  msg.content,
-              },
-            ],
-          })
-        );
+    await chat.save();
 
-      // --------------------------------------
-      // STREAMING HEADERS
-      // --------------------------------------
+    // Build conversation history
+    const conversation = chat.messages.map((msg) => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [
+        {
+          text: msg.content,
+        },
+      ],
+    }));
 
-      res.setHeader(
-        "Content-Type",
-        "text/plain; charset=utf-8"
-      );
+    // Streaming headers
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
 
-      res.setHeader(
-        "Cache-Control",
-        "no-cache, no-transform"
-      );
+    // Gemini request with retry
+    const responseStream = await generateGeminiStream(conversation, 3);
 
-      res.setHeader(
-        "Connection",
-        "keep-alive"
-      );
+    // Collect + stream AI response
+    let fullResponse = "";
 
-      res.setHeader(
-        "X-Accel-Buffering",
-        "no"
-      );
-
-      // --------------------------------------
-      // GEMINI REQUEST WITH RETRY
-      // --------------------------------------
-
-      const responseStream =
-        await generateGeminiStream(
-          conversation,
-          3
-        );
-
-      // --------------------------------------
-      // COLLECT AI RESPONSE
-      // --------------------------------------
-
-      let fullResponse = "";
-
-      // --------------------------------------
-      // STREAM AI RESPONSE
-      // --------------------------------------
-
-      for await (
-        const chunk
-        of responseStream
-      ) {
-        if (chunk.text) {
-          fullResponse +=
-            chunk.text;
-
-          res.write(
-            chunk.text
-          );
-        }
-      }
-
-      // --------------------------------------
-      // SAVE AI RESPONSE
-      // --------------------------------------
-
-      if (
-        fullResponse.trim()
-      ) {
-        chat.messages.push({
-          role:
-            "assistant",
-
-          content:
-            fullResponse.trim(),
-        });
-
-        await chat.save();
-      }
-
-      // --------------------------------------
-      // END STREAM
-      // --------------------------------------
-
-      res.end();
-    } catch (error) {
-      console.error(
-        "❌ Gemini API Error:",
-        error
-      );
-
-      // --------------------------------------
-      // IF STREAMING HAS NOT STARTED
-      // --------------------------------------
-
-      if (!res.headersSent) {
-        const is503 =
-          error?.status === 503 ||
-          error?.code === 503 ||
-          JSON.stringify(error).includes(
-            '"code":503'
-          ) ||
-          JSON.stringify(error).includes(
-            "Service Unavailable"
-          );
-
-        if (is503) {
-          return res.status(503).json({
-            error:
-              "G-GPT is temporarily busy. Please try again in a moment.",
-          });
-        }
-
-        return res.status(500).json({
-          error:
-            "Failed to generate AI response",
-        });
-      }
-
-      // --------------------------------------
-      // IF STREAMING ALREADY STARTED
-      // --------------------------------------
-
-      try {
-        res.end();
-      } catch {
-        // Ignore response close errors
+    for await (const chunk of responseStream) {
+      if (chunk.text) {
+        fullResponse += chunk.text;
+        res.write(chunk.text);
       }
     }
+
+    // Save AI response
+    if (fullResponse.trim()) {
+      chat.messages.push({
+        role: "assistant",
+        content: fullResponse.trim(),
+      });
+      await chat.save();
+    }
+
+    res.end();
+  } catch (error) {
+    console.error("❌ Gemini API Error:", error);
+
+    // If streaming has not started
+    if (!res.headersSent) {
+      const is503 =
+        error?.status === 503 ||
+        error?.code === 503 ||
+        JSON.stringify(error).includes('"code":503') ||
+        JSON.stringify(error).includes("Service Unavailable");
+
+      if (is503) {
+        return res.status(503).json({
+          error: "G-GPT is temporarily busy. Please try again in a moment.",
+        });
+      }
+
+      return res.status(500).json({
+        error: "Failed to generate AI response",
+      });
+    }
+
+    // If streaming already started
+    try {
+      res.end();
+    } catch {
+      // Ignore response close errors
+    }
   }
-);
+});
+
+// ==========================================
+// REGENERATE LAST RESPONSE
+// ==========================================
+app.post("/api/chat/regenerate", authMiddleware, async (req, res) => {
+  try {
+    const { chatId } = req.body;
+
+    if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) {
+      return res.status(400).json({
+        error: "Valid chatId is required",
+      });
+    }
+
+    const chat = await Chat.findOne({
+      _id: chatId,
+      userId: req.user.userId,
+    });
+
+    if (!chat) {
+      return res.status(404).json({
+        error: "Chat not found",
+      });
+    }
+
+    // Remove the last assistant reply so we don't end up with a duplicate
+    const lastMessage = chat.messages[chat.messages.length - 1];
+    if (lastMessage && lastMessage.role === "assistant") {
+      chat.messages.pop();
+      await chat.save();
+    }
+
+    if (chat.messages.length === 0) {
+      return res.status(400).json({
+        error: "Nothing to regenerate",
+      });
+    }
+
+    // Build conversation history from what's left
+    const conversation = chat.messages.map((msg) => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [
+        {
+          text: msg.content,
+        },
+      ],
+    }));
+
+    // Streaming headers
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    const responseStream = await generateGeminiStream(conversation, 3);
+
+    let fullResponse = "";
+
+    for await (const chunk of responseStream) {
+      if (chunk.text) {
+        fullResponse += chunk.text;
+        res.write(chunk.text);
+      }
+    }
+
+    if (fullResponse.trim()) {
+      chat.messages.push({
+        role: "assistant",
+        content: fullResponse.trim(),
+      });
+      await chat.save();
+    }
+
+    res.end();
+  } catch (error) {
+    console.error("❌ Regenerate Error:", error);
+
+    if (!res.headersSent) {
+      return res.status(500).json({
+        error: "Failed to regenerate response",
+      });
+    }
+
+    try {
+      res.end();
+    } catch {
+      // Ignore response close errors
+    }
+  }
+});
 
 // ==========================================
 // GLOBAL ERROR HANDLER
 // ==========================================
+app.use((error, req, res, next) => {
+  console.error("❌ Server Error:", error.message);
 
-app.use(
-  (
-    error,
-    req,
-    res,
-    next
-  ) => {
-    console.error(
-      "❌ Server Error:",
-      error.message
-    );
-
-    if (res.headersSent) {
-      return next(error);
-    }
-
-    res.status(500).json({
-      error:
-        "Internal server error",
-    });
+  if (res.headersSent) {
+    return next(error);
   }
-);
+
+  res.status(500).json({
+    error: "Internal server error",
+  });
+});
 
 // ==========================================
 // START SERVER
 // ==========================================
-
-app.listen(
-  PORT,
-  "0.0.0.0",
-  () => {
-    console.log(
-      `🚀 G-GPT server running on port ${PORT}`
-    );
-  }
-);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 G-GPT server running on port ${PORT}`);
+});

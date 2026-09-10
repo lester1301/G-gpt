@@ -1,445 +1,171 @@
 function Sidebar({
   user,
   onLogout,
-  chats = [],
+  chats,
   activeChat,
   onNewChat,
   onSelectChat,
   onDeleteChat,
+  onOpenSettings,
 }) {
+  // ==========================================
+  // GROUP CHATS BY DATE
+  // ==========================================
+  const groupChatsByDate = () => {
+    const today = [];
+    const yesterday = [];
+    const older = [];
 
-  // ==========================================
-  // USER AVATAR
-  // ==========================================
+    const now = new Date();
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+
+    (chats || []).forEach((chat) => {
+      const chatDate = new Date(chat.updatedAt || chat.createdAt);
+
+      if (chatDate >= startOfToday) {
+        today.push(chat);
+      } else if (chatDate >= startOfYesterday) {
+        yesterday.push(chat);
+      } else {
+        older.push(chat);
+      }
+    });
+
+    return { today, yesterday, older };
+  };
+
+  const { today, yesterday, older } = groupChatsByDate();
 
   const getUserInitial = () => {
-
     if (!user?.name) {
-      return "G";
+      return "U";
     }
-
-    return user.name
-      .charAt(0)
-      .toUpperCase();
-
+    return user.name.charAt(0).toUpperCase();
   };
 
-
-  // ==========================================
-  // CHAT DATE GROUP
-  // ==========================================
-
-  const getChatDate = (chat) => {
-
-    if (!chat?.createdAt) {
-      return new Date();
-    }
-
-    return new Date(chat.createdAt);
-
-  };
-
-
-  const isToday = (date) => {
-
-    const today = new Date();
-
-    return (
-      date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear()
-    );
-
-  };
-
-
-  const isYesterday = (date) => {
-
-    const yesterday = new Date();
-
-    yesterday.setDate(
-      yesterday.getDate() - 1
-    );
-
-    return (
-      date.getDate() === yesterday.getDate() &&
-      date.getMonth() === yesterday.getMonth() &&
-      date.getFullYear() === yesterday.getFullYear()
-    );
-
-  };
-
-
-  // ==========================================
-  // GROUP CHATS
-  // ==========================================
-
-  const todayChats = chats.filter(
-    (chat) =>
-      isToday(
-        getChatDate(chat)
-      )
-  );
-
-
-  const yesterdayChats = chats.filter(
-    (chat) =>
-      isYesterday(
-        getChatDate(chat)
-      )
-  );
-
-
-  const olderChats = chats.filter(
-    (chat) => {
-
-      const date =
-        getChatDate(chat);
-
-      return (
-        !isToday(date) &&
-        !isYesterday(date)
-      );
-
-    }
-  );
-
-
-  // ==========================================
-  // CHAT BUTTON
-  // ==========================================
-
- const renderChat = (chat) => {
-  const handleDelete = (event) => {
+  const handleDelete = (event, chatId) => {
     event.stopPropagation();
 
     const confirmed = window.confirm(
-      "Are you sure you want to delete this chat?"
+      "Delete this conversation? This cannot be undone."
     );
 
-    if (!confirmed) {
-      return;
+    if (confirmed) {
+      onDeleteChat(chatId);
     }
-
-    onDeleteChat(chat._id);
   };
 
-  return (
-    <div
-      key={chat._id}
-      className={`history-chat-wrapper ${
-        activeChat === chat._id
-          ? "active"
-          : ""
-      }`}
-    >
+  const renderChatGroup = (title, groupChats) => (
+    <div className="history-section" key={title}>
+      <div className="history-title">{title}</div>
+      <div className="history-list">
+        {groupChats.length === 0 ? (
+          <div className="history-empty">No previous chats</div>
+        ) : (
+          groupChats.map((chat) => (
+            <div
+              key={chat._id}
+              className={`history-chat-wrapper ${
+                activeChat === chat._id ? "active" : ""
+              }`}
+            >
+              <button
+                type="button"
+                className="history-chat"
+                onClick={() => onSelectChat(chat._id)}
+              >
+                <span className="history-chat-icon">💬</span>
+                <span className="history-chat-title">{chat.title}</span>
+              </button>
 
-      <button
-        type="button"
-        className={`history-chat ${
-          activeChat === chat._id
-            ? "active"
-            : ""
-        }`}
-        onClick={() =>
-          onSelectChat(chat._id)
-        }
-      >
-
-        <span className="history-chat-icon">
-          💬
-        </span>
-
-        <span className="history-chat-title">
-          {chat.title || "New Chat"}
-        </span>
-
-      </button>
-
-
-      <button
-        type="button"
-        className="chat-delete-btn"
-        onClick={handleDelete}
-        title="Delete chat"
-        aria-label={`Delete ${chat.title || "chat"}`}
-      >
-        ⋮
-      </button>
-
+              <button
+                type="button"
+                className="chat-delete-btn"
+                onClick={(event) => handleDelete(event, chat._id)}
+                aria-label="Delete chat"
+              >
+                🗑
+              </button>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
-};
-
-  // ==========================================
-  // EMPTY HISTORY
-  // ==========================================
-
-  const renderEmptyMessage = () => {
-
-    return (
-
-      <div className="history-empty">
-
-        No previous chats
-
-      </div>
-
-    );
-
-  };
-
-
-  // ==========================================
-  // RENDER
-  // ==========================================
 
   return (
-
     <aside className="sidebar">
-
       {/* ======================================
-          SIDEBAR HEADER
+          HEADER / LOGO
       ====================================== */}
-
       <div className="sidebar-header">
-
-        <div className="sidebar-logo">
-
-          G-GPT
-
-        </div>
-
+        <span className="sidebar-logo">G-GPT</span>
       </div>
-
 
       {/* ======================================
           NEW CHAT
       ====================================== */}
-
       <div className="sidebar-new-chat">
-
-        <button
-          type="button"
-          className="new-chat-btn"
-          onClick={onNewChat}
-        >
-
-          <span className="new-chat-icon">
-            +
-          </span>
-
-          <span>
-            New Chat
-          </span>
-
+        <button type="button" className="new-chat-btn" onClick={onNewChat}>
+          <span className="new-chat-icon">+</span>
+          New Chat
         </button>
-
       </div>
-
 
       {/* ======================================
           CHAT HISTORY
       ====================================== */}
-
       <div className="sidebar-history">
-
-
-        {/* ====================================
-            TODAY
-        ==================================== */}
-
-        <div className="history-section">
-
-          <div className="history-title">
-
-            Today
-
-          </div>
-
-
-          <div className="history-list">
-
-            {todayChats.length > 0
-              ? todayChats.map(
-                  renderChat
-                )
-              : renderEmptyMessage()}
-
-          </div>
-
-        </div>
-
-
-        {/* ====================================
-            YESTERDAY
-        ==================================== */}
-
-        <div className="history-section">
-
-          <div className="history-title">
-
-            Yesterday
-
-          </div>
-
-
-          <div className="history-list">
-
-            {yesterdayChats.length > 0
-              ? yesterdayChats.map(
-                  renderChat
-                )
-              : renderEmptyMessage()}
-
-          </div>
-
-        </div>
-
-
-        {/* ====================================
-            OLDER
-        ==================================== */}
-
-        {olderChats.length > 0 && (
-
-          <div className="history-section">
-
-            <div className="history-title">
-
-              Older
-
-            </div>
-
-
-            <div className="history-list">
-
-              {olderChats.map(
-                renderChat
-              )}
-
-            </div>
-
-          </div>
-
-        )}
-
+        {renderChatGroup("Today", today)}
+        {renderChatGroup("Yesterday", yesterday)}
+        {renderChatGroup("Older", older)}
       </div>
 
-
       {/* ======================================
-          SIDEBAR BOTTOM
+          BOTTOM SECTION
       ====================================== */}
-
       <div className="sidebar-bottom">
-
-
-        {/* ====================================
-            SETTINGS
-        ==================================== */}
-
         <button
           type="button"
           className="sidebar-bottom-btn"
+          onClick={onOpenSettings}
         >
-
-          <span className="sidebar-bottom-icon">
-            ⚙
-          </span>
-
-          <span>
-            Settings
-          </span>
-
+          <span className="sidebar-bottom-icon">⚙</span>
+          Settings
         </button>
 
-
-        {/* ====================================
-            HELP
-        ==================================== */}
-
-        <button
-          type="button"
-          className="sidebar-bottom-btn"
-        >
-
-          <span className="sidebar-bottom-icon">
-            ?
-          </span>
-
-          <span>
-            Help
-          </span>
-
+        <button type="button" className="sidebar-bottom-btn">
+          <span className="sidebar-bottom-icon">?</span>
+          Help
         </button>
-
-
-        {/* ====================================
-            USER
-        ==================================== */}
 
         <div className="sidebar-user">
-
           <div className="sidebar-user-info">
-
-
-            {/* Avatar */}
-
-            <div className="sidebar-user-avatar">
-
-              {getUserInitial()}
-
-            </div>
-
-
-            {/* User details */}
-
+            <div className="sidebar-user-avatar">{getUserInitial()}</div>
             <div className="sidebar-user-details">
-
-              <div className="sidebar-user-name">
-
-                {user?.name ||
-                  "User"}
-
-              </div>
-
-
-              <div className="sidebar-user-email">
-
-                {user?.email ||
-                  ""}
-
-              </div>
-
+              <div className="sidebar-user-name">{user?.name || "User"}</div>
+              <div className="sidebar-user-email">{user?.email || ""}</div>
             </div>
-
           </div>
-
-
-          {/* ==================================
-              LOGOUT
-          ================================== */}
 
           <button
             type="button"
             className="logout-btn"
             onClick={onLogout}
-            title="Logout"
             aria-label="Logout"
           >
-
-            ↪
-
+            ⏻
           </button>
-
         </div>
-
       </div>
-
     </aside>
-
   );
-
 }
 
 export default Sidebar;
