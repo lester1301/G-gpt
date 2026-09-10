@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import Message from "./Message";
 import EmptyChat from "./EmptyChat";
 import ChatSkeleton from "./ChatSkeleton";
-
 function ChatWindow({
   messages,
   isLoading,
