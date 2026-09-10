@@ -1105,7 +1105,7 @@ const [showSettings, setShowSettings] = useState(false);
                     ...message,
 
                     content:
-                      "Bro… the servers are fighting for their lives 💀",
+                      "Bro… the servers are fighting for their lives 💀\n\n" + "G-GPT is temporarily unable to process your request. This may happen when the AI service is experiencing high traffic or is temporarily unavailable. Please wait a moment and try again.",
                   }
                 : message
           )
