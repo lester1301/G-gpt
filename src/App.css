@@ -1129,6 +1129,18 @@
   opacity: 0.9;
 }
 
+.auth-forgot-link {
+  align-self: flex-end;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--accent-solid);
+  font-weight: 600;
+}
+
+.auth-forgot-link:hover {
+  text-decoration: underline;
+}
+
 .auth-switch {
   margin-top: 18px;
   font-size: 13px;

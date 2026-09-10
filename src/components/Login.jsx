@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { API_URL } from "../config";
 
-function Login({ onLogin, onShowSignup }) {
+function Login({ onLogin, onShowSignup, onShowForgotPassword }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -69,6 +69,14 @@ function Login({ onLogin, onShowSignup }) {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
+
+          <button
+            type="button"
+            className="auth-forgot-link"
+            onClick={onShowForgotPassword}
+          >
+            Forgot password?
+          </button>
 
           <button type="submit" disabled={loading}>
             {loading ? "Logging in..." : "Login"}

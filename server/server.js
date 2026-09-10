@@ -4,7 +4,9 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import rateLimit from "express-rate-limit";
+import nodemailer from "nodemailer";
 import { GoogleGenAI } from "@google/genai";
 import User from "./models/User.js";
 import Chat from "./models/Chat.js";
@@ -41,6 +43,19 @@ if (!process.env.JWT_SECRET) {
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
+
+// ==========================================
+// EMAIL TRANSPORTER (for password reset)
+// ==========================================
+const emailTransporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_APP_PASSWORD,
+  },
+});
+
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://g-gpt-wheat.vercel.app";
 
 // ==========================================
 // G-GPT SYSTEM INSTRUCTION
@@ -266,6 +281,142 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
     console.error("❌ Login Error:", error);
     res.status(500).json({
       error: "Failed to login",
+    });
+  }
+});
+
+// ==========================================
+// FORGOT PASSWORD — send reset email
+// ==========================================
+app.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        error: "Email is required",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    // Always respond the same way whether or not the email exists —
+    // this stops someone from using this form to check which emails
+    // are registered on G-GPT.
+    const genericResponse = {
+      message:
+        "If an account with that email exists, a reset link has been sent.",
+    };
+
+    if (!user) {
+      return res.json(genericResponse);
+    }
+
+    // Generate a random token, store only its hash (so a leaked
+    // database never exposes usable reset tokens)
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
+
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
+    await user.save();
+
+    const resetLink = `${FRONTEND_URL}/reset-password?token=${rawToken}`;
+
+    try {
+      await emailTransporter.sendMail({
+        from: `"G-GPT" <${process.env.EMAIL_USER}>`,
+        to: user.email,
+        subject: "Reset your G-GPT password",
+        html: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+            <h2 style="color: #6c5ce7;">Reset your password</h2>
+            <p>Hi ${user.name},</p>
+            <p>We received a request to reset your G-GPT password. This link will expire in 15 minutes.</p>
+            <p>
+              <a href="${resetLink}" style="display: inline-block; padding: 12px 20px; background: #6c5ce7; color: #fff; text-decoration: none; border-radius: 8px;">
+                Reset Password
+              </a>
+            </p>
+            <p>If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        `,
+      });
+    } catch (emailError) {
+      console.error("❌ Failed to send reset email:", emailError);
+      // Roll back the token so it isn't left dangling if the email failed
+      user.resetPasswordToken = null;
+      user.resetPasswordExpires = null;
+      await user.save();
+
+      return res.status(500).json({
+        error: "Failed to send reset email. Please try again later.",
+      });
+    }
+
+    res.json(genericResponse);
+  } catch (error) {
+    console.error("❌ Forgot Password Error:", error);
+    res.status(500).json({
+      error: "Failed to process request",
+    });
+  }
+});
+
+// ==========================================
+// RESET PASSWORD — verify token + set new password
+// ==========================================
+app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({
+        error: "Token and new password are required",
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        error: "Password must be at least 6 characters",
+      });
+    }
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        error: "This reset link is invalid or has expired",
+      });
+    }
+
+    user.password = await bcrypt.hash(password, 12);
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
+    await user.save();
+
+    res.json({
+      message: "Password reset successfully. You can now log in.",
+    });
+  } catch (error) {
+    console.error("❌ Reset Password Error:", error);
+    res.status(500).json({
+      error: "Failed to reset password",
     });
   }
 });

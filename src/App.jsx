@@ -9,6 +9,8 @@ import EmptyChat from "./components/EmptyChat";
 
 import Login from "./components/Login";
 import Signup from "./components/Signup";
+import ForgotPassword from "./components/Forgotpassword";
+import ResetPassword from "./components/ResetPassword";
 
 import "./App.css";
 
@@ -36,6 +38,15 @@ function App() {
   );
 
   const [showSignup, setShowSignup] = useState(false);
+
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  // Reset-password link looks like: yoursite.com/reset-password?token=xxxx
+  // We read it once on load — if it's present, we show the reset screen
+  // regardless of login state.
+  const [resetToken] = useState(() =>
+    new URLSearchParams(window.location.search).get("token")
+  );
 
   const [authChecking, setAuthChecking] = useState(true);
 
@@ -136,6 +147,13 @@ const [showSettings, setShowSettings] = useState(false);
   // ==========================================
 
   useEffect(() => {
+
+    // Skip the login check entirely if we're on a reset-password link —
+    // no need to hit /api/auth/me when the user isn't trying to log in.
+    if (resetToken) {
+      setAuthChecking(false);
+      return;
+    }
 
     const checkAuthentication = async () => {
 
@@ -1125,6 +1143,62 @@ const [showSettings, setShowSettings] = useState(false);
 
 
   // ==========================================
+  // RESET PASSWORD SCREEN
+  // (shown whenever the URL has a ?token=..., regardless
+  // of whether someone is logged in — this takes priority
+  // over everything else below)
+  // ==========================================
+
+  if (resetToken) {
+
+    return (
+
+      <div
+        className={`auth-container theme-${theme}`}
+      >
+
+        <ResetPassword
+
+          token={resetToken}
+
+          onDone={() => {
+            window.history.replaceState({}, "", "/");
+            window.location.reload();
+          }}
+
+        />
+
+
+        {/* AUTH THEME BUTTON */}
+
+        <button
+          type="button"
+          className="auth-theme-toggle"
+          onClick={
+            handleToggleTheme
+          }
+          aria-label="Toggle theme"
+          title={
+            theme === "dark"
+              ? "Switch to light mode"
+              : "Switch to dark mode"
+          }
+        >
+
+          {theme === "dark"
+            ? "☀"
+            : "☾"}
+
+        </button>
+
+      </div>
+
+    );
+
+  }
+
+
+  // ==========================================
   // AUTH LOADING SCREEN
   // ==========================================
 
@@ -1157,10 +1231,56 @@ const [showSettings, setShowSettings] = useState(false);
 
 
   // ==========================================
-  // LOGIN / SIGNUP
+  // LOGIN / SIGNUP / FORGOT PASSWORD
   // ==========================================
 
   if (!user) {
+
+    if (showForgotPassword) {
+
+      return (
+
+        <div
+          className={`auth-container theme-${theme}`}
+        >
+
+          <ForgotPassword
+
+            onBackToLogin={() =>
+              setShowForgotPassword(false)
+            }
+
+          />
+
+
+          {/* AUTH THEME BUTTON */}
+
+          <button
+            type="button"
+            className="auth-theme-toggle"
+            onClick={
+              handleToggleTheme
+            }
+            aria-label="Toggle theme"
+            title={
+              theme === "dark"
+                ? "Switch to light mode"
+                : "Switch to dark mode"
+            }
+          >
+
+            {theme === "dark"
+              ? "☀"
+              : "☾"}
+
+          </button>
+
+        </div>
+
+      );
+
+    }
+
 
     if (showSignup) {
 
@@ -1226,6 +1346,10 @@ const [showSettings, setShowSettings] = useState(false);
 
           onShowSignup={() =>
             setShowSignup(true)
+          }
+
+          onShowForgotPassword={() =>
+            setShowForgotPassword(true)
           }
 
         />
@@ -1390,7 +1514,7 @@ const [showSettings, setShowSettings] = useState(false);
 
 
         {/* ====================================
-            THEME SWITCH
+            SETTINGS MODAL
         ==================================== */}
 
         <Settings
