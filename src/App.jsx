@@ -1105,7 +1105,7 @@ const [showSettings, setShowSettings] = useState(false);
                     ...message,
 
                     content:
-                      "Sorry, something went wrong. Please try again.",
+                      "Bro… the servers are fighting for their lives 💀",
                   }
                 : message
           )
