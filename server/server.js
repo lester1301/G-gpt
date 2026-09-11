@@ -6,7 +6,6 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import rateLimit from "express-rate-limit";
-import nodemailer from "nodemailer";
 import { GoogleGenAI } from "@google/genai";
 import User from "./models/User.js";
 import Chat from "./models/Chat.js";
@@ -23,6 +22,11 @@ dotenv.config();
 // ==========================================
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Render sits behind a reverse proxy — this tells Express to trust the
+// X-Forwarded-For header so express-rate-limit can correctly identify
+// each visitor's real IP address instead of throwing a validation error.
+app.set("trust proxy", 1);
 
 // ==========================================
 // ENVIRONMENT CHECK
@@ -45,15 +49,34 @@ const ai = new GoogleGenAI({
 });
 
 // ==========================================
-// EMAIL TRANSPORTER (for password reset)
+// EMAIL (for password reset) — via Brevo's HTTP API
 // ==========================================
-const emailTransporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_APP_PASSWORD,
-  },
-});
+// Using an HTTP API instead of SMTP because Render's free tier
+// blocks/restricts outbound SMTP connections (port 587/465),
+// which caused "Connection timeout" errors with Gmail SMTP.
+async function sendEmail({ to, subject, html }) {
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": process.env.BREVO_API_KEY,
+    },
+    body: JSON.stringify({
+      sender: {
+        name: "G-GPT",
+        email: process.env.BREVO_SENDER_EMAIL,
+      },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Brevo error (${response.status}): ${errorBody}`);
+  }
+}
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "https://g-gpt-wheat.vercel.app";
 
@@ -331,8 +354,7 @@ app.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
     const resetLink = `${FRONTEND_URL}/reset-password?token=${rawToken}`;
 
     try {
-      await emailTransporter.sendMail({
-        from: `"G-GPT" <${process.env.EMAIL_USER}>`,
+      await sendEmail({
         to: user.email,
         subject: "Reset your G-GPT password",
         html: `
