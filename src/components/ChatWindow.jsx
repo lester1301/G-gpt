@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import Message from "./Message";
 import EmptyChat from "./EmptyChat";
 import ChatSkeleton from "./ChatSkeleton";
+
 function ChatWindow({
   messages,
   isLoading,
@@ -63,6 +64,7 @@ function ChatWindow({
               isLoading={isEmptyAssistantMessage && isLoading}
               isLastAssistant={index === lastAssistantIndex}
               onRegenerate={() => onRegenerate(message.id)}
+              attachment={message.attachment}
             />
           );
         })}

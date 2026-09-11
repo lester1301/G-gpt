@@ -9,8 +9,9 @@ import EmptyChat from "./components/EmptyChat";
 
 import Login from "./components/Login";
 import Signup from "./components/Signup";
-import ForgotPassword from "./components/Forgotpassword";
+import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
+import VoiceMode from "./components/VoiceMode";
 
 import "./App.css";
 
@@ -55,6 +56,7 @@ function App() {
   // THEME STATE
   // ==========================================
 const [showSettings, setShowSettings] = useState(false);
+  const [showVoiceMode, setShowVoiceMode] = useState(false);
   const [theme, setTheme] = useState(() => {
 
     const savedTheme =
@@ -522,6 +524,9 @@ const [showSettings, setShowSettings] = useState(false);
             content:
               message.content,
 
+            attachment:
+              message.attachment || null,
+
           })
         );
 
@@ -706,7 +711,8 @@ const [showSettings, setShowSettings] = useState(false);
   // ==========================================
 
   const handleSendMessage = async (
-    text
+    text,
+    attachment
   ) => {
 
     if (!authToken) {
@@ -715,8 +721,8 @@ const [showSettings, setShowSettings] = useState(false);
 
 
     if (
-      !text ||
-      !text.trim()
+      (!text || !text.trim()) &&
+      !attachment
     ) {
       return;
     }
@@ -828,6 +834,9 @@ const [showSettings, setShowSettings] = useState(false);
       content:
         text,
 
+      attachment:
+        attachment || null,
+
     };
 
 
@@ -896,6 +905,13 @@ const [showSettings, setShowSettings] = useState(false);
               JSON.stringify({
                 message: text,
                 chatId: currentChatId,
+                attachment: attachment
+                  ? {
+                      name: attachment.name,
+                      mimeType: attachment.mimeType,
+                      data: attachment.data,
+                    }
+                  : null,
               }),
 
             signal:
@@ -1571,6 +1587,21 @@ const [showSettings, setShowSettings] = useState(false);
 
 
         {/* ====================================
+            VOICE MODE
+        ==================================== */}
+
+        <VoiceMode
+          isOpen={showVoiceMode}
+          onClose={() => setShowVoiceMode(false)}
+          onSendMessage={handleSendMessage}
+          isLoading={isLoading}
+          lastAssistantMessage={
+            [...messages].reverse().find((m) => m.role === "assistant")
+              ?.content
+          }
+        />
+
+        {/* ====================================
             MESSAGE COMPOSER
         ==================================== */}
 
@@ -1587,6 +1618,8 @@ const [showSettings, setShowSettings] = useState(false);
           disabled={
             isLoading
           }
+
+          onOpenVoiceMode={() => setShowVoiceMode(true)}
 
         />
 

@@ -6,6 +6,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import rateLimit from "express-rate-limit";
+import mammoth from "mammoth";
+import * as XLSX from "xlsx";
 import { GoogleGenAI } from "@google/genai";
 import User from "./models/User.js";
 import Chat from "./models/Chat.js";
@@ -81,6 +83,64 @@ async function sendEmail({ to, subject, html }) {
 const FRONTEND_URL = process.env.FRONTEND_URL || "https://g-gpt-wheat.vercel.app";
 
 // ==========================================
+// ATTACHMENT HANDLING
+// ==========================================
+
+// Types Gemini can read directly (sent as inlineData)
+const NATIVE_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "application/pdf",
+];
+
+// Types we extract text from ourselves before sending to Gemini,
+// since Gemini can't read these formats directly
+const EXTRACTABLE_TYPES = [
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+  "application/vnd.ms-excel", // .xls
+  "text/csv",
+  "text/plain",
+];
+
+const ALLOWED_ATTACHMENT_TYPES = [...NATIVE_TYPES, ...EXTRACTABLE_TYPES];
+
+const MAX_EXTRACTED_TEXT_LENGTH = 15000;
+
+async function extractTextFromAttachment(mimeType, base64Data) {
+  const buffer = Buffer.from(base64Data, "base64");
+
+  let text = "";
+
+  if (
+    mimeType ===
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    const result = await mammoth.extractRawText({ buffer });
+    text = result.value;
+  } else if (
+    mimeType ===
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    mimeType === "application/vnd.ms-excel"
+  ) {
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+    text = workbook.SheetNames.map((sheetName) => {
+      const sheet = workbook.Sheets[sheetName];
+      return `--- Sheet: ${sheetName} ---\n${XLSX.utils.sheet_to_csv(sheet)}`;
+    }).join("\n\n");
+  } else if (mimeType === "text/csv" || mimeType === "text/plain") {
+    text = buffer.toString("utf-8");
+  }
+
+  if (text.length > MAX_EXTRACTED_TEXT_LENGTH) {
+    text = text.slice(0, MAX_EXTRACTED_TEXT_LENGTH) + "\n\n[Content truncated — file is very long]";
+  }
+
+  return text.trim();
+}
+
+// ==========================================
 // G-GPT SYSTEM INSTRUCTION
 // ==========================================
 const systemInstruction = `
@@ -144,7 +204,7 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "12mb" }));
 
 // ==========================================
 // RATE LIMITERS
@@ -536,13 +596,41 @@ async function generateGeminiStream(conversation, maxRetries = 3) {
 // ==========================================
 app.post("/api/chat", authMiddleware, async (req, res) => {
   try {
-    const { message, chatId } = req.body;
+    const { message, chatId, attachment } = req.body;
 
-    // Validate message
-    if (!message || !message.trim()) {
+    // Validate message — text can be empty if there's an attachment,
+    // but we need at least one of the two
+    if ((!message || !message.trim()) && !attachment) {
       return res.status(400).json({
-        error: "Message is required",
+        error: "Message or attachment is required",
       });
+    }
+
+    // Validate attachment shape if present
+    if (attachment) {
+      if (
+        !attachment.mimeType ||
+        !ALLOWED_ATTACHMENT_TYPES.includes(attachment.mimeType)
+      ) {
+        return res.status(400).json({
+          error: "Unsupported attachment type",
+        });
+      }
+
+      if (!attachment.data) {
+        return res.status(400).json({
+          error: "Attachment data is missing",
+        });
+      }
+
+      // Rough size check — base64 is ~33% larger than the original file.
+      // This caps the original file at roughly 8MB.
+      const approxSizeMB = (attachment.data.length * 0.75) / (1024 * 1024);
+      if (approxSizeMB > 8) {
+        return res.status(400).json({
+          error: "Attachment is too large (max ~8MB)",
+        });
+      }
     }
 
     // Validate chat id
@@ -564,28 +652,81 @@ app.post("/api/chat", authMiddleware, async (req, res) => {
       });
     }
 
-    // Save user message
+    // For document types Gemini can't read natively, extract the text
+    // ourselves now so it's ready to use every time this chat is loaded
+    let extractedText = null;
+    if (attachment && EXTRACTABLE_TYPES.includes(attachment.mimeType) && attachment.mimeType !== "text/plain") {
+      try {
+        extractedText = await extractTextFromAttachment(
+          attachment.mimeType,
+          attachment.data
+        );
+      } catch (extractError) {
+        console.error("❌ Text extraction failed:", extractError);
+        return res.status(400).json({
+          error: "Failed to read that file. It may be corrupted or in an unsupported format.",
+        });
+      }
+    } else if (attachment && attachment.mimeType === "text/plain") {
+      extractedText = Buffer.from(attachment.data, "base64").toString("utf-8");
+    }
+
+    // Save user message (with attachment if present)
     chat.messages.push({
       role: "user",
-      content: message.trim(),
+      content: message ? message.trim() : "",
+      attachment: attachment
+        ? {
+            name: attachment.name || "attachment",
+            mimeType: attachment.mimeType,
+            // Only keep the raw base64 data for types Gemini reads natively
+            // (images/PDF) — for Word/Excel/text we only need the extracted
+            // text, which keeps documents out of the database.
+            data: NATIVE_TYPES.includes(attachment.mimeType)
+              ? attachment.data
+              : null,
+            extractedText: extractedText || null,
+          }
+        : null,
     });
 
     // Create chat title
     if (chat.title === "New Chat") {
-      chat.title = message.trim().slice(0, 50);
+      chat.title = (message ? message.trim() : attachment?.name || "New Chat").slice(0, 50);
     }
 
     await chat.save();
 
-    // Build conversation history
-    const conversation = chat.messages.map((msg) => ({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [
-        {
-          text: msg.content,
-        },
-      ],
-    }));
+    // Build conversation history — images/PDFs become an extra inlineData
+    // part, while Word/Excel/CSV text gets merged into the text itself
+    // (since Gemini can't read those formats directly)
+    const conversation = chat.messages.map((msg) => {
+      let textContent = msg.content || "";
+
+      if (msg.attachment?.extractedText) {
+        textContent += `\n\n[Content of attached file "${msg.attachment.name}"]:\n${msg.attachment.extractedText}`;
+      }
+
+      const parts = [{ text: textContent }];
+
+      if (
+        msg.attachment?.data &&
+        msg.attachment?.mimeType &&
+        NATIVE_TYPES.includes(msg.attachment.mimeType)
+      ) {
+        parts.push({
+          inlineData: {
+            mimeType: msg.attachment.mimeType,
+            data: msg.attachment.data,
+          },
+        });
+      }
+
+      return {
+        role: msg.role === "assistant" ? "model" : "user",
+        parts,
+      };
+    });
 
     // Streaming headers
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -685,14 +826,33 @@ app.post("/api/chat/regenerate", authMiddleware, async (req, res) => {
     }
 
     // Build conversation history from what's left
-    const conversation = chat.messages.map((msg) => ({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [
-        {
-          text: msg.content,
-        },
-      ],
-    }));
+    const conversation = chat.messages.map((msg) => {
+      let textContent = msg.content || "";
+
+      if (msg.attachment?.extractedText) {
+        textContent += `\n\n[Content of attached file "${msg.attachment.name}"]:\n${msg.attachment.extractedText}`;
+      }
+
+      const parts = [{ text: textContent }];
+
+      if (
+        msg.attachment?.data &&
+        msg.attachment?.mimeType &&
+        NATIVE_TYPES.includes(msg.attachment.mimeType)
+      ) {
+        parts.push({
+          inlineData: {
+            mimeType: msg.attachment.mimeType,
+            data: msg.attachment.data,
+          },
+        });
+      }
+
+      return {
+        role: msg.role === "assistant" ? "model" : "user",
+        parts,
+      };
+    });
 
     // Streaming headers
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
