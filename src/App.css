@@ -1639,6 +1639,101 @@
 }
 
 /* ==========================================================
+   GALLERY
+   ========================================================== */
+
+.gallery-modal {
+  max-width: 640px;
+}
+
+.gallery-body {
+  padding: 16px 20px 20px;
+}
+
+.gallery-message {
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13.5px;
+  padding: 30px 10px;
+  margin: 0;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.gallery-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+}
+
+.gallery-item-preview {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--bg-elevated-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.gallery-item-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gallery-item-icon {
+  font-size: 32px;
+}
+
+.gallery-item-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-item-chat {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-item-open-btn {
+  margin-top: 4px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  background: var(--bg-elevated-2);
+  border: 1px solid var(--border-strong);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+
+.gallery-item-open-btn:hover {
+  background: var(--accent-gradient);
+  color: var(--accent-on-gradient);
+  border-color: transparent;
+}
+
+/* ==========================================================
    SKELETON LOADING (shown briefly when switching chats)
    ========================================================== */
 

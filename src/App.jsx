@@ -12,6 +12,7 @@ import Signup from "./components/Signup";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
 import VoiceMode from "./components/VoiceMode";
+import Gallery from "./components/Gallery";
 
 import "./App.css";
 
@@ -57,6 +58,7 @@ function App() {
   // ==========================================
 const [showSettings, setShowSettings] = useState(false);
   const [showVoiceMode, setShowVoiceMode] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);
   const [theme, setTheme] = useState(() => {
 
     const savedTheme =
@@ -1500,6 +1502,8 @@ const [showSettings, setShowSettings] = useState(false);
 
           onOpenSettings={() => setShowSettings(true)}
 
+          onOpenGallery={() => setShowGallery(true)}
+
         />
 
       </div>
@@ -1585,6 +1589,20 @@ const [showSettings, setShowSettings] = useState(false);
 
         )}
 
+
+        {/* ====================================
+            GALLERY
+        ==================================== */}
+
+        <Gallery
+          isOpen={showGallery}
+          onClose={() => setShowGallery(false)}
+          authToken={authToken}
+          onOpenInChat={(selectedChatId) => {
+            handleSelectChat(selectedChatId);
+            setShowGallery(false);
+          }}
+        />
 
         {/* ====================================
             VOICE MODE

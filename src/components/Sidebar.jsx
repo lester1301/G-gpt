@@ -7,6 +7,7 @@ function Sidebar({
   onSelectChat,
   onDeleteChat,
   onOpenSettings,
+  onOpenGallery,
 }) {
   // ==========================================
   // GROUP CHATS BY DATE
@@ -138,6 +139,15 @@ function Sidebar({
         >
           <span className="sidebar-bottom-icon">⚙</span>
           Settings
+        </button>
+
+        <button
+          type="button"
+          className="sidebar-bottom-btn"
+          onClick={onOpenGallery}
+        >
+          <span className="sidebar-bottom-icon">🖼</span>
+          Gallery
         </button>
 
         <button type="button" className="sidebar-bottom-btn">

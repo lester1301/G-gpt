@@ -528,9 +528,97 @@ app.get("/api/auth/me", authMiddleware, async (req, res) => {
 });
 
 // ==========================================
+// GALLERY — all attachments across the user's chats
+// ==========================================
+app.get("/api/attachments", authMiddleware, async (req, res) => {
+  try {
+    const chats = await Chat.find({ userId: req.user.userId }).select(
+      "title messages"
+    );
+
+    const attachments = [];
+
+    chats.forEach((chat) => {
+      chat.messages.forEach((message) => {
+        if (message.attachment) {
+          attachments.push({
+            chatId: chat._id,
+            chatTitle: chat.title,
+            name: message.attachment.name,
+            mimeType: message.attachment.mimeType,
+            // Only include the actual file data for images (used as a
+            // thumbnail) — for everything else we just need the name/icon,
+            // which keeps this response small.
+            data: message.attachment.mimeType?.startsWith("image/")
+              ? message.attachment.data
+              : null,
+            createdAt: message.createdAt,
+          });
+        }
+      });
+    });
+
+    attachments.sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+    res.json({ attachments });
+  } catch (error) {
+    console.error("❌ Gallery Error:", error);
+    res.status(500).json({
+      error: "Failed to load attachments",
+    });
+  }
+});
+
+// ==========================================
 // CHAT HISTORY ROUTES
 // ==========================================
 app.use("/api/chats", authMiddleware, chatRoutes);
+
+// ==========================================
+// GALLERY — all attachments across all chats
+// ==========================================
+app.get("/api/attachments", authMiddleware, async (req, res) => {
+  try {
+    const chats = await Chat.find({ userId: req.user.userId })
+      .select("title messages")
+      .lean();
+
+    const attachments = [];
+
+    chats.forEach((chat) => {
+      (chat.messages || []).forEach((message) => {
+        if (message.attachment) {
+          attachments.push({
+            chatId: chat._id,
+            chatTitle: chat.title,
+            name: message.attachment.name,
+            mimeType: message.attachment.mimeType,
+            // Only send image bytes back (for thumbnails) — keeps the
+            // response small for PDFs, Word docs, spreadsheets, etc.
+            imageData: message.attachment.mimeType?.startsWith("image/")
+              ? message.attachment.data
+              : null,
+            createdAt: message.createdAt,
+          });
+        }
+      });
+    });
+
+    // Most recent first
+    attachments.sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+    res.json({ attachments });
+  } catch (error) {
+    console.error("❌ Fetch Attachments Error:", error);
+    res.status(500).json({
+      error: "Failed to load attachments",
+    });
+  }
+});
 
 // ==========================================
 // GEMINI REQUEST WITH AUTOMATIC RETRY
