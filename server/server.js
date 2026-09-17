@@ -577,50 +577,6 @@ app.get("/api/attachments", authMiddleware, async (req, res) => {
 app.use("/api/chats", authMiddleware, chatRoutes);
 
 // ==========================================
-// GALLERY — all attachments across all chats
-// ==========================================
-app.get("/api/attachments", authMiddleware, async (req, res) => {
-  try {
-    const chats = await Chat.find({ userId: req.user.userId })
-      .select("title messages")
-      .lean();
-
-    const attachments = [];
-
-    chats.forEach((chat) => {
-      (chat.messages || []).forEach((message) => {
-        if (message.attachment) {
-          attachments.push({
-            chatId: chat._id,
-            chatTitle: chat.title,
-            name: message.attachment.name,
-            mimeType: message.attachment.mimeType,
-            // Only send image bytes back (for thumbnails) — keeps the
-            // response small for PDFs, Word docs, spreadsheets, etc.
-            imageData: message.attachment.mimeType?.startsWith("image/")
-              ? message.attachment.data
-              : null,
-            createdAt: message.createdAt,
-          });
-        }
-      });
-    });
-
-    // Most recent first
-    attachments.sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-    );
-
-    res.json({ attachments });
-  } catch (error) {
-    console.error("❌ Fetch Attachments Error:", error);
-    res.status(500).json({
-      error: "Failed to load attachments",
-    });
-  }
-});
-
-// ==========================================
 // GEMINI REQUEST WITH AUTOMATIC RETRY
 // ==========================================
 async function generateGeminiStream(conversation, maxRetries = 3) {
@@ -982,6 +938,94 @@ app.post("/api/chat/regenerate", authMiddleware, async (req, res) => {
     } catch {
       // Ignore response close errors
     }
+  }
+});
+
+// ==========================================
+// IMAGE GENERATION
+// ==========================================
+app.post("/api/generate-image", authMiddleware, async (req, res) => {
+  try {
+    const { prompt, chatId } = req.body;
+
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({
+        error: "A prompt is required",
+      });
+    }
+
+    if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) {
+      return res.status(400).json({
+        error: "Valid chatId is required",
+      });
+    }
+
+    const chat = await Chat.findOne({
+      _id: chatId,
+      userId: req.user.userId,
+    });
+
+    if (!chat) {
+      return res.status(404).json({
+        error: "Chat not found",
+      });
+    }
+
+    // Save the user's prompt as a normal message
+    chat.messages.push({
+      role: "user",
+      content: prompt.trim(),
+    });
+
+    if (chat.title === "New Chat") {
+      chat.title = prompt.trim().slice(0, 50);
+    }
+
+    await chat.save();
+
+    // ==========================================
+    // CALL THE IMAGE MODEL
+    // ==========================================
+    // NOTE: model name may need updating — check Google's current
+    // Gemini API docs for the latest image-generation model id if
+    // this returns a "model not found" error.
+    const imageResponse = await ai.models.generateImages({
+      model: "imagen-4.0-generate-001",
+      prompt: prompt.trim(),
+      config: {
+        numberOfImages: 1,
+      },
+    });
+
+    const generatedImage = imageResponse?.generatedImages?.[0]?.image;
+
+    if (!generatedImage?.imageBytes) {
+      throw new Error("No image was returned by the model");
+    }
+
+    // Save the generated image as the assistant's reply
+    chat.messages.push({
+      role: "assistant",
+      content: "",
+      generatedImage: {
+        mimeType: "image/png",
+        data: generatedImage.imageBytes,
+      },
+    });
+
+    await chat.save();
+
+    res.json({
+      image: {
+        mimeType: "image/png",
+        data: generatedImage.imageBytes,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Image Generation Error:", error);
+    res.status(500).json({
+      error: "Failed to generate image. Please try a different prompt.",
+    });
   }
 });
 

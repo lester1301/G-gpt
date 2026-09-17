@@ -17,9 +17,16 @@ const ALLOWED_TYPES = [
 
 const MAX_FILE_SIZE_MB = 8;
 
-function MessageComposer({ onSendMessage, onStop, disabled, onOpenVoiceMode }) {
+function MessageComposer({
+  onSendMessage,
+  onStop,
+  disabled,
+  onOpenVoiceMode,
+  onGenerateImage,
+}) {
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [isImageMode, setIsImageMode] = useState(false);
   const [attachment, setAttachment] = useState(null); // { name, mimeType, data, previewUrl }
   const [attachmentError, setAttachmentError] = useState("");
 
@@ -144,6 +151,13 @@ function MessageComposer({ onSendMessage, onStop, disabled, onOpenVoiceMode }) {
       return;
     }
 
+    if (isImageMode) {
+      onGenerateImage(message);
+      setInput("");
+      setIsImageMode(false);
+      return;
+    }
+
     onSendMessage(message, attachment);
     setInput("");
     setAttachment(null);
@@ -197,6 +211,19 @@ function MessageComposer({ onSendMessage, onStop, disabled, onOpenVoiceMode }) {
         <p className="attachment-error">{attachmentError}</p>
       )}
 
+      {isImageMode && (
+        <div className="image-mode-banner">
+          <span>🎨 Image mode — describe what you want to generate</span>
+          <button
+            type="button"
+            onClick={() => setIsImageMode(false)}
+            aria-label="Cancel image mode"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <form className="message-composer" onSubmit={handleSubmit}>
         {/* HIDDEN FILE INPUT */}
         <input
@@ -226,7 +253,9 @@ function MessageComposer({ onSendMessage, onStop, disabled, onOpenVoiceMode }) {
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={
-            isListening
+            isImageMode
+              ? "Describe the image you want..."
+              : isListening
               ? "Listening..."
               : disabled
               ? "G-GPT is thinking..."
@@ -249,6 +278,18 @@ function MessageComposer({ onSendMessage, onStop, disabled, onOpenVoiceMode }) {
             🎤
           </button>
         )}
+
+        {/* IMAGE GENERATION TOGGLE */}
+        <button
+          type="button"
+          className={`composer-image-btn ${isImageMode ? "active" : ""}`}
+          onClick={() => setIsImageMode((prev) => !prev)}
+          disabled={disabled}
+          aria-label="Generate an image"
+          title="Generate an image"
+        >
+          🎨
+        </button>
 
         {/* VOICE MODE */}
         <button

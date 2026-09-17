@@ -28,6 +28,14 @@ const messageSchema = new mongoose.Schema(
       },
       default: null,
     },
+
+    generatedImage: {
+  type: {
+    mimeType: String,
+    data: String,
+  },
+  default: null,
+},
   },
   {
     timestamps: true,

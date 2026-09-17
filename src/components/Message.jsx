@@ -9,6 +9,7 @@ function Message({
   isLastAssistant,
   onRegenerate,
   attachment,
+  generatedImage,
 }) {
   const isUser = role === "user";
   const [copied, setCopied] = useState(false);
@@ -84,6 +85,17 @@ function Message({
               </div>
             )}
           </div>
+        )}
+
+        {/* ====================================
+            GENERATED IMAGE
+        ==================================== */}
+        {generatedImage && (
+          <img
+            src={`data:${generatedImage.mimeType};base64,${generatedImage.data}`}
+            alt="Generated"
+            className="message-generated-image"
+          />
         )}
 
         {/* ====================================

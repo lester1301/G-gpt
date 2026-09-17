@@ -992,6 +992,73 @@
   animation: pulse-dot 1.2s infinite ease-in-out;
 }
 
+.composer-image-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 2px;
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  transition: background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard);
+}
+
+.composer-image-btn:hover:not(:disabled) {
+  background: var(--bg-elevated-2);
+  color: var(--text-primary);
+}
+
+.composer-image-btn.active {
+  background: var(--accent-gradient);
+  color: var(--accent-on-gradient);
+  border-color: transparent;
+}
+
+.image-mode-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 760px;
+  padding: 8px 14px;
+  margin-bottom: 8px;
+  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent-start);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.image-mode-banner button {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.image-mode-banner button:hover {
+  background: var(--bg-elevated-2);
+  color: var(--text-primary);
+}
+
+.message-generated-image {
+  max-width: 400px;
+  max-height: 400px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle);
+  display: block;
+}
+
 /* ==========================================================
    VOICE MODE OVERLAY
    ========================================================== */

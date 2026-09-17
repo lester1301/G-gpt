@@ -65,6 +65,7 @@ function ChatWindow({
               isLastAssistant={index === lastAssistantIndex}
               onRegenerate={() => onRegenerate(message.id)}
               attachment={message.attachment}
+              generatedImage={message.generatedImage}
             />
           );
         })}

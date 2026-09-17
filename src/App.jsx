@@ -529,6 +529,9 @@ const [showSettings, setShowSettings] = useState(false);
             attachment:
               message.attachment || null,
 
+            generatedImage:
+              message.generatedImage || null,
+
           })
         );
 
@@ -654,6 +657,89 @@ const [showSettings, setShowSettings] = useState(false);
     setIsLoading(false);
 
   };
+
+  const handleGenerateImage = async (prompt) => {
+
+    if (!authToken || !prompt || !prompt.trim()) {
+      return;
+    }
+
+    let currentChatId = chatId;
+
+    if (!currentChatId) {
+      try {
+        const createResponse = await fetch(`${API_URL}/api/chats`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!createResponse.ok) {
+          throw new Error("Failed to create chat");
+        }
+
+        const createData = await createResponse.json();
+        currentChatId = createData.chat._id;
+
+        setChatId(currentChatId);
+        setChats((previousChats) => [createData.chat, ...previousChats]);
+      } catch (error) {
+        console.error("Create chat error:", error);
+        return;
+      }
+    }
+
+    const userMessage = {
+      id: `${Date.now()}-user`,
+      role: "user",
+      content: prompt,
+    };
+
+    setMessages((previousMessages) => [...previousMessages, userMessage]);
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/generate-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ prompt, chatId: currentChatId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate image");
+      }
+
+      const assistantMessage = {
+        id: `${Date.now()}-assistant`,
+        role: "assistant",
+        content: "",
+        generatedImage: data.image,
+      };
+
+      setMessages((previousMessages) => [...previousMessages, assistantMessage]);
+    } catch (error) {
+      console.error("Image generation error:", error);
+
+      setMessages((previousMessages) => [
+        ...previousMessages,
+        {
+          id: `${Date.now()}-assistant`,
+          role: "assistant",
+          content: "Sorry, I couldn't generate that image. Please try a different prompt.",
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   const handleRegenerate = async (assistantMessageId) => {
   if (!authToken || !chatId) return;
@@ -1638,6 +1724,8 @@ const [showSettings, setShowSettings] = useState(false);
           }
 
           onOpenVoiceMode={() => setShowVoiceMode(true)}
+
+          onGenerateImage={handleGenerateImage}
 
         />
 
