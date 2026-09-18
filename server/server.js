@@ -984,32 +984,31 @@ app.post("/api/generate-image", authMiddleware, async (req, res) => {
     await chat.save();
 
     // ==========================================
-    // CALL THE IMAGE MODEL
+    // CALL THE IMAGE MODEL (Gemini's built-in image
+    // generation, aka "Nano Banana")
     // ==========================================
-    // NOTE: model name may need updating — check Google's current
-    // Gemini API docs for the latest image-generation model id if
-    // this returns a "model not found" error.
-    const imageResponse = await ai.models.generateImages({
-      model: "imagen-4.0-generate-001",
-      prompt: prompt.trim(),
-      config: {
-        numberOfImages: 1,
-      },
+    const imageResponse = await ai.models.generateContent({
+      model: "gemini-3.1-flash-image",
+      contents: prompt.trim(),
     });
 
-    const generatedImage = imageResponse?.generatedImages?.[0]?.image;
+    const parts = imageResponse?.candidates?.[0]?.content?.parts || [];
+    const imagePart = parts.find((part) => part.inlineData);
 
-    if (!generatedImage?.imageBytes) {
+    if (!imagePart?.inlineData?.data) {
       throw new Error("No image was returned by the model");
     }
+
+    const generatedImageData = imagePart.inlineData.data;
+    const generatedImageMimeType = imagePart.inlineData.mimeType || "image/png";
 
     // Save the generated image as the assistant's reply
     chat.messages.push({
       role: "assistant",
       content: "",
       generatedImage: {
-        mimeType: "image/png",
-        data: generatedImage.imageBytes,
+        mimeType: generatedImageMimeType,
+        data: generatedImageData,
       },
     });
 
@@ -1017,8 +1016,8 @@ app.post("/api/generate-image", authMiddleware, async (req, res) => {
 
     res.json({
       image: {
-        mimeType: "image/png",
-        data: generatedImage.imageBytes,
+        mimeType: generatedImageMimeType,
+        data: generatedImageData,
       },
     });
   } catch (error) {
